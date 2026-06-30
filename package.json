@@ -1,0 +1,140 @@
+{
+  "name": "tomato-writer",
+  "displayName": "番茄写作助手",
+  "publisher": "tomato-writer",
+  "description": "专为番茄小说短篇写作设计的 VS Code 扩展",
+  "version": "0.3.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:tomato-writer.open",
+    "onCommand:tomato-writer.newProject",
+    "onCommand:tomato-writer.openSettings"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tomato-writer-sidebar",
+          "title": "番茄写作助手",
+          "icon": "media/tomato-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "tomato-writer-sidebar": [
+        {
+          "id": "tomato-writer-projects",
+          "name": "我的项目",
+          "icon": "media/tomato-icon.svg"
+        },
+        {
+          "id": "tomato-writer-nav",
+          "name": "功能导航",
+          "icon": "media/tomato-icon.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "tomato-writer.open",
+        "title": "打开番茄写作助手"
+      },
+      {
+        "command": "tomato-writer.newProject",
+        "title": "新建写作项目"
+      },
+      {
+        "command": "tomato-writer.openSettings",
+        "title": "写作设置"
+      },
+      {
+        "command": "tomato-writer.openPanel",
+        "title": "打开面板",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "tomato-writer.switchProject",
+        "title": "切换项目"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "tomato-writer.newProject",
+          "when": "view == tomato-writer-projects",
+          "group": "navigation"
+        },
+        {
+          "command": "tomato-writer.open",
+          "when": "view == tomato-writer-projects",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "tomato-writer.openPanel",
+          "when": "view == tomato-writer-nav && viewItem == navItem",
+          "group": "inline"
+        },
+        {
+          "command": "tomato-writer.switchProject",
+          "when": "view == tomato-writer-projects && viewItem == projectItem",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "番茄写作助手",
+      "properties": {
+        "tomatoWriter.ai.apiKey": {
+          "type": "string",
+          "description": "AI 模型 API Key",
+          "default": ""
+        },
+        "tomatoWriter.ai.model": {
+          "type": "string",
+          "description": "AI 模型名称（如 gpt-4, gpt-3.5-turbo, claude-3 等）",
+          "default": "gpt-3.5-turbo"
+        },
+        "tomatoWriter.ai.baseURL": {
+          "type": "string",
+          "description": "API Base URL（兼容 OpenAI 格式的模型）",
+          "default": "https://api.openai.com/v1"
+        },
+        "tomatoWriter.writing.dailyGoal": {
+          "type": "number",
+          "description": "每日写作目标字数",
+          "default": 2000
+        },
+        "tomatoWriter.writing.chapterLength": {
+          "type": "number",
+          "description": "建议单章字数",
+          "default": 2500
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -watch -p ./tsconfig.json",
+    "package": "vsce package",
+    "webview:dev": "cd webview && npm run dev",
+    "webview:build": "cd webview && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "openai": "^4.0.0"
+  }
+}

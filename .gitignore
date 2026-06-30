@@ -1,0 +1,16 @@
+node_modules/
+dist/
+out/
+*.vsix
+.vscode-test/
+**/*.vsix
+
+# macOS
+.DS_Store
+
+# Build artifacts
+webview/dist/
+webview/node_modules/
+
+# Environment
+.env
