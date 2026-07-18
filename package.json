@@ -3,7 +3,11 @@
   "displayName": "番茄写作助手",
   "publisher": "tomato-writer",
   "description": "专为番茄小说短篇写作设计的 VS Code 扩展",
-  "version": "0.3.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/swartea/tomato-writer"
+  },
+  "version": "0.4.0",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -121,9 +125,10 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run webview:build && npm run compile",
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -watch -p ./tsconfig.json",
+    "build": "npm run webview:build && npm run compile",
     "package": "vsce package",
     "webview:dev": "cd webview && npm run dev",
     "webview:build": "cd webview && npm run build"
@@ -134,7 +139,5 @@
     "@vscode/vsce": "^2.0.0",
     "typescript": "^5.9.3"
   },
-  "dependencies": {
-    "openai": "^4.0.0"
-  }
+  "dependencies": {}
 }

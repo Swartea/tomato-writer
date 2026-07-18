@@ -73,6 +73,16 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
+/* ---------- 工具函数 ---------- */
+function getNonce(): string {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
 /* ================================================================
  * 树视图数据提供者 — 项目列表
  * ================================================================ */
@@ -245,11 +255,73 @@ class TomatoWriterPanel {
                     case 'error':
                         vscode.window.showErrorMessage(String(message.text));
                         break;
+                    case 'aiRequest':
+                        // 代理 AI API 调用（绕过 webview CSP 限制）
+                        this._handleAIRequest(message);
+                        break;
                 }
             },
             null,
             this._disposables
         );
+    }
+
+    /** 代理 AI API 请求 */
+    private async _handleAIRequest(message: { [key: string]: unknown }) {
+        const { apiUrl, apiKey, model, messages, temperature, maxTokens, requestId } = message as {
+            apiUrl: string;
+            apiKey: string;
+            model: string;
+            messages: { role: string; content: string }[];
+            temperature: number;
+            maxTokens: number;
+            requestId: string;
+        };
+
+        try {
+            // 手动超时控制（比 AbortController 更可靠）
+            const response = await Promise.race([
+                fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        model,
+                        messages,
+                        temperature,
+                        max_tokens: maxTokens,
+                    }),
+                }),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('API 请求超时（150秒）')), 150000) // 前端 180s 的覆盖层
+                )
+            ]);
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                this.postMessage({
+                    type: 'aiResponse',
+                    requestId,
+                    error: (err as any).error?.message || `API 调用失败 (${response.status})`,
+                });
+                return;
+            }
+
+            const data: any = await response.json();
+            this.postMessage({
+                type: 'aiResponse',
+                requestId,
+                content: data.choices?.[0]?.message?.content || '',
+            });
+        } catch (err: any) {
+            this.postMessage({
+                type: 'aiResponse',
+                requestId,
+                error: err.message || '网络请求失败',
+            });
+        }
     }
 
     /** 向前端发送消息 */
@@ -281,17 +353,28 @@ class TomatoWriterPanel {
             vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'assets', 'index.css')
         );
 
+        // 生成 nonce 用于 CSP
+        const nonce = getNonce();
+
         return `<!DOCTYPE html>
             <html lang="zh-CN">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <meta http-equiv="Content-Security-Policy" content="
+                    default-src 'none';
+                    script-src 'nonce-${nonce}' https:;
+                    style-src ${webview.cspSource} 'unsafe-inline';
+                    img-src ${webview.cspSource} data: https:;
+                    font-src ${webview.cspSource};
+                    connect-src https: http:;
+                ">
                 <title>番茄写作助手</title>
                 <link href="${styleUri}" rel="stylesheet">
             </head>
             <body>
                 <div id="root"></div>
-                <script type="module" src="${scriptUri}"></script>
+                <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
             </body>
             </html>`;
     }

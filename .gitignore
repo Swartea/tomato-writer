@@ -14,3 +14,9 @@ webview/node_modules/
 
 # Environment
 .env
+
+# 构建临时文件
+webview/vite.config.ts.timestamp-*.mjs
+
+# 本地项目记忆（不进仓库）
+.workbuddy/
