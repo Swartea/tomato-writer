@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>番茄写作助手 · 重设计预览（写作视图）</title>
+<style>
+  :root {
+    --tomato:#E5483D; --tomato-bright:#FF6B5E; --tomato-strong:#C5392F;
+    --tomato-soft:rgba(229,72,61,.10);
+    --leaf:#2BB673; --info:#2F6FED; --warn:#E08A1E; --purple:#8B5CF6;
+    --r-sm:8px; --r-md:12px; --r-lg:16px;
+    --ease:cubic-bezier(.4,0,.2,1);
+    --shadow-sm:0 2px 8px rgba(31,27,26,.06);
+    --shadow-lg:0 24px 64px rgba(31,27,26,.18);
+    --mono:"JetBrains Mono","SF Mono",ui-monospace,monospace;
+    --serif:"Noto Serif SC","Songti SC","Source Han Serif SC",serif;
+    --sans:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  }
+  html[data-theme="light"]{
+    --bg-base:#FFFFFF; --bg-subtle:#F7F5F4; --bg-sidebar:#FBF8F7;
+    --surface:#FFFFFF; --border:#ECE7E4; --border-strong:#DCD4D0;
+    --text-strong:#1F1B1A; --text:#423B39; --text-muted:#8A7F7C;
+  }
+  html[data-theme="dark"]{
+    --bg-base:#1A1715; --bg-subtle:#211D1B; --bg-sidebar:#15110F;
+    --surface:#241F1C; --border:#322B27; --border-strong:#423930;
+    --text-strong:#F5EFEC; --text:#D8CFCB; --text-muted:#948880;
+    --tomato:var(--tomato-bright);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg-subtle);color:var(--text);
+    font-size:13.5px;line-height:1.55;-webkit-font-smoothing:antialiased;height:100vh;overflow:hidden}
+
+  /* ===== theme toggle ===== */
+  .theme-toggle{position:fixed;top:16px;right:16px;z-index:99999;display:flex;gap:6px;
+    background:var(--surface);border:1px solid var(--border);border-radius:999px;
+    padding:4px;box-shadow:var(--shadow-sm)}
+  .theme-toggle button{border:none;background:transparent;cursor:pointer;font-size:12px;
+    padding:5px 12px;border-radius:999px;color:var(--text-muted);font-family:var(--sans)}
+  .theme-toggle button.active{background:var(--tomato-soft);color:var(--tomato);font-weight:600}
+
+  /* ===== app shell ===== */
+  .app{display:flex;height:100vh}
+  .sidebar{width:212px;min-width:212px;background:var(--bg-sidebar);
+    border-right:1px solid var(--border);display:flex;flex-direction:column;user-select:none}
+  .brand{display:flex;align-items:center;gap:10px;padding:18px 16px 14px;
+    border-bottom:1px solid var(--border)}
+  .brand svg{width:26px;height:26px;flex-shrink:0}
+  .brand-text{font-size:15px;font-weight:700;letter-spacing:.3px;color:var(--text-strong)}
+  .brand-text b{color:var(--tomato)}
+
+  .project-switcher{margin:10px 10px 6px;display:flex;align-items:center;gap:8px;
+    padding:9px 12px;border-radius:var(--r-sm);background:var(--bg-base);
+    border:1px solid var(--border);cursor:pointer;transition:all .18s var(--ease)}
+  .project-switcher:hover{border-color:var(--tomato)}
+  .ps-name{font-weight:600;font-size:12.5px;color:var(--text-strong);flex:1;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ps-status{font-size:10px;font-weight:600;padding:1px 7px;border-radius:4px;
+    background:rgba(43,182,115,.14);color:var(--leaf)}
+
+  .nav-group{padding:8px 10px;display:flex;flex-direction:column;gap:2px;flex:1}
+  .nav-label{font-size:10.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;
+    color:var(--text-muted);opacity:.7;padding:8px 12px 4px}
+  .nav-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);
+    color:var(--text-muted);font-size:13px;cursor:pointer;position:relative;transition:all .18s var(--ease)}
+  .nav-item:hover{background:var(--bg-subtle);color:var(--text)}
+  .nav-item.active{background:var(--tomato-soft);color:var(--tomato);font-weight:600}
+  .nav-item .ico{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .nav-item.active .nav-ind{position:absolute;left:0;top:50%;transform:translateY(-50%);
+    width:3px;height:18px;border-radius:2px;background:var(--tomato)}
+  .sidebar-footer{padding:12px 16px;border-top:1px solid var(--border);
+    font-size:11px;color:var(--text-muted);opacity:.6;display:flex;justify-content:space-between}
+
+  /* ===== main ===== */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 24px;min-height:54px;border-bottom:1px solid var(--border);background:var(--bg-base)}
+  .topbar-left{display:flex;align-items:baseline;gap:12px}
+  .page-title{font-size:20px;font-weight:700;color:var(--text-strong);letter-spacing:-.2px}
+  .proj-name{font-size:13px;color:var(--text-muted);border-left:1px solid var(--border);padding-left:12px}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;
+    font-size:11.5px;font-weight:500;background:rgba(43,182,115,.14);color:var(--leaf)}
+
+  .workspace{flex:1;display:flex;overflow:hidden}
+  .chapter-rail{width:208px;min-width:188px;background:var(--bg-sidebar);
+    border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 12px;overflow-y:auto}
+  .rail-title{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;
+    color:var(--text-muted);opacity:.6;margin-bottom:8px}
+  .chapter{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--r-sm);
+    cursor:pointer;transition:all .18s var(--ease);border:1px solid transparent;margin-bottom:3px}
+  .chapter:hover{background:var(--bg-subtle)}
+  .chapter.active{background:var(--tomato-soft);border-color:rgba(229,72,61,.25)}
+  .ch-num{width:22px;height:22px;border-radius:50%;background:var(--bg-base);
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;
+    font-family:var(--mono);color:var(--text-muted)}
+  .chapter.active .ch-num{background:var(--tomato);color:#fff}
+  .ch-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+  .ch-name{font-size:12.5px;font-weight:500;color:var(--text-strong);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ch-words{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+  .add-chapter{margin-top:6px;padding:8px;border:1px dashed var(--border);border-radius:var(--r-sm);
+    background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .18s var(--ease);font-family:var(--sans)}
+  .add-chapter:hover{border-color:var(--tomato);color:var(--tomato);background:var(--tomato-soft)}
+
+  /* ===== writing canvas ===== */
+  .canvas-wrap{flex:1;display:flex;flex-direction:column;background:var(--bg-base);overflow:hidden;position:relative}
+  .editor-header{display:flex;align-items:center;justify-content:space-between;
+    padding:12px 28px;border-bottom:1px solid var(--border);background:var(--bg-sidebar)}
+  .chapter-title-input{font-size:16px;font-weight:700;background:transparent;border:1px solid transparent;
+    color:var(--text-strong);padding:5px 10px;border-radius:var(--r-sm);outline:none;width:340px;font-family:var(--sans)}
+  .chapter-title-input:hover,.chapter-title-input:focus{border-color:var(--border);background:var(--bg-base)}
+  .word-count{font-size:12.5px;display:flex;align-items:center;gap:8px;color:var(--text-muted)}
+  .word-count b{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--text-strong)}
+  .word-status{font-size:11px;font-weight:600;padding:1px 8px;border-radius:4px;
+    background:rgba(43,182,115,.14);color:var(--leaf)}
+
+  .writing-scroll{flex:1;overflow-y:auto;padding:40px 24px 120px}
+  .writing-area{max-width:720px;margin:0 auto;font-family:var(--serif);font-size:17px;
+    line-height:2.0;letter-spacing:.3px;color:var(--text-strong)}
+  .writing-area p{margin-bottom:1.4em}
+  .dropcap::first-letter{font-size:3.1em;font-weight:700;float:left;line-height:.85;
+    padding:6px 10px 0 0;color:var(--tomato)}
+
+  /* ===== floating AI toolbar ===== */
+  .ai-fab{position:absolute;right:28px;bottom:28px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .ai-chips{display:flex;gap:8px}
+  .ai-chip{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;
+    background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-sm);
+    font-size:12.5px;font-weight:500;color:var(--text);cursor:pointer;transition:all .18s var(--ease);font-family:var(--sans)}
+  .ai-chip:hover{border-color:var(--tomato);color:var(--tomato)}
+  .ai-main{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:999px;
+    background:var(--tomato);color:#fff;border:none;box-shadow:0 8px 24px rgba(229,72,61,.32);
+    font-size:13.5px;font-weight:600;cursor:pointer;transition:all .18s var(--ease);font-family:var(--sans)}
+  .ai-main:hover{background:var(--tomato-strong);transform:translateY(-1px)}
+</style>
+</head>
+<body>
+  <div class="theme-toggle">
+    <button id="t-light" class="active" onclick="setTheme('light')">☀ 浅色</button>
+    <button id="t-dark" onclick="setTheme('dark')">🌙 暗色</button>
+  </div>
+
+  <div class="app">
+    <!-- ===== Sidebar ===== -->
+    <aside class="sidebar">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 4C8 4 4.5 7.5 4.5 12C4.5 16.5 8 20 12 20C16 20 19.5 16.5 19.5 12C19.5 7.5 16 4 12 4Z" fill="#E5483D"/>
+          <path d="M12 4C10.5 3 9 2 8 2.5C9 3 10 4 12 4Z" fill="#2BB673"/>
+          <path d="M12 4C13.5 3 15 2 16 2.5C15 3 14 4 12 4Z" fill="#2BB673"/>
+          <path d="M12 4L12 2" stroke="#2BB673" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-text">番茄<b>写作</b></span>
+      </div>
+
+      <div class="project-switcher">
+        <span class="ps-name">雨夜邂逅</span>
+        <span class="ps-status">写作中</span>
+      </div>
+
+      <nav class="nav-group">
+        <div class="nav-label">创作</div>
+        <div class="nav-item">
+          <span class="ico">🎯</span><span>开篇策划</span>
+        </div>
+        <div class="nav-item active">
+          <span class="nav-ind"></span>
+          <span class="ico">✎</span><span>写作</span>
+        </div>
+        <div class="nav-item">
+          <span class="ico">▤</span><span>大纲</span>
+        </div>
+        <div class="nav-item">
+          <span class="ico">◫</span><span>角色</span>
+        </div>
+        <div class="nav-label">辅助</div>
+        <div class="nav-item">
+          <span class="ico">✦</span><span>AI 助手</span>
+        </div>
+        <div class="nav-item">
+          <span class="ico">▦</span><span>统计</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>v0.5.0</span><span>已同步</span>
+      </div>
+    </aside>
+
+    <!-- ===== Main ===== -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="page-title">写作</h1>
+          <span class="proj-name">雨夜邂逅</span>
+        </div>
+        <span class="badge">● 番茄短篇规范已启用</span>
+      </header>
+
+      <div class="workspace">
+        <!-- chapter rail -->
+        <div class="chapter-rail">
+          <div class="rail-title">章节列表</div>
+          <div class="chapter active">
+            <span class="ch-num">1</span>
+            <div class="ch-info"><span class="ch-name">第一章 · 雨夜撞人</span><span class="ch-words">1,284 字</span></div>
+          </div>
+          <div class="chapter">
+            <span class="ch-num">2</span>
+            <div class="ch-info"><span class="ch-name">第二章 · 面试官席位</span><span class="ch-words">962 字</span></div>
+          </div>
+          <div class="chapter">
+            <span class="ch-num">3</span>
+            <div class="ch-info"><span class="ch-name">第三章（未写）</span><span class="ch-words">0 字</span></div>
+          </div>
+          <button class="add-chapter">＋ 添加章节</button>
+        </div>
+
+        <!-- writing canvas -->
+        <div class="canvas-wrap">
+          <div class="editor-header">
+            <input class="chapter-title-input" value="第一章 · 雨夜撞人" />
+            <div class="word-count">
+              <span><b>1,284</b> / 2,500 字</span>
+              <span class="word-status">进行中</span>
+            </div>
+          </div>
+          <div class="writing-scroll">
+            <div class="writing-area">
+              <p class="dropcap">林小雨从没想过，自己会在雷雨夜撞上一个人。那种撞法，不是小说里写的肩膀蹭肩膀、目光交汇心跳加速。是真撞——她跑得太急，脚底一滑，整个人扑出去，膝盖磕在对方皮鞋面上，疼得她当场"嘶"了一声。</p>
+              <p>对方没动，站得笔直。雨水顺着他的伞骨滑下来，滴在她手背上，凉得她一哆嗦。"你没事吧？"他问。声音低，像是被雨压住了。</p>
+              <p>她抬头看他——路灯只剩半盏亮，照出半张脸。轮廓很硬，眉骨高，嘴唇抿成一条线。"没事。"她站起来，膝盖还在疼，但她不想在陌生人面前蹲下去揉。</p>
+              <p>他看了她一眼，像是在确认她真的没事，然后转身走了。走了三步，他停了一下。什么东西掉在地上——一块金属，巴掌大，在雨里闪了一下。</p>
+            </div>
+          </div>
+
+          <div class="ai-fab">
+            <div class="ai-chips">
+              <span class="ai-chip">✍ 续写</span>
+              <span class="ai-chip">✨ 润色</span>
+              <span class="ai-chip">💡 灵感</span>
+            </div>
+            <button class="ai-main">🤖 问问 AI 助手</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('t-light').classList.toggle('active', t==='light');
+    document.getElementById('t-dark').classList.toggle('active', t==='dark');
+  }
+</script>
+</body>
+</html>

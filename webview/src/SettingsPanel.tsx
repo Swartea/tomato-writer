@@ -33,8 +33,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={e => e.stopPropagation()}>
         <div className="settings-header">
-          <h2>⚙️ AI 设置</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h2>AI 设置</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
         <div className="settings-body">
@@ -117,12 +117,12 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
           {/* 保存按钮 */}
           <button className="save-settings-btn" onClick={handleSave}>
-            {saved ? '✓ 已保存' : '保存设置'}
+            {saved ? '已保存' : '保存设置'}
           </button>
 
           {/* 使用说明 */}
           <div className="setting-tips">
-            <h4>💡 使用说明</h4>
+            <h4>使用说明</h4>
             <ul>
               <li>支持所有 OpenAI 兼容格式的 API</li>
               <li>国内用户推荐使用 DeepSeek（便宜好用）</li>

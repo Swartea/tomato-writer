@@ -2,20 +2,62 @@ import { useState, useEffect, useRef } from 'react';
 import { SettingsPanel } from './SettingsPanel';
 import { loadAISettings, callAI, SELLPOINT_PROMPT, NAMING_PROMPT, BOOK_TITLE_PROMPT, OUTLINE_PROMPT, WRITING_PROMPT, AI_DETECT_PROMPT, LOGIC_CHECK_PROMPT, EDITOR_REVIEW_PROMPT } from './aiService';
 
-/* ---------- 图标组件 ---------- */
-const Icon = ({ children, size = 18 }: { children: string; size?: number }) => (
-  <span className="nav-icon" style={{ fontSize: size }}>{children}</span>
+/* ---------- 图标组件（内联 SVG，零 emoji） ---------- */
+type IconName =
+  | 'target' | 'edit' | 'outline' | 'users' | 'robot' | 'chart'
+  | 'tag' | 'bulb' | 'flame' | 'pen' | 'warning' | 'star'
+  | 'sparkle' | 'rocket' | 'user' | 'city' | 'search' | 'gear'
+  | 'clock' | 'doc' | 'check' | 'swap' | 'activity' | 'book'
+  | 'pin' | 'lock' | 'clipboard' | 'mask' | 'link' | 'coder';
+
+const ICONS: Record<IconName, JSX.Element> = {
+  target: (<><circle cx="10" cy="10" r="6.5" /><line x1="10" y1="2" x2="10" y2="5" /><line x1="10" y1="15" x2="10" y2="18" /><line x1="2" y1="10" x2="5" y2="10" /><line x1="15" y1="10" x2="18" y2="10" /><circle cx="10" cy="10" r="2" /></>),
+  edit: (<><path d="M13.5 3.5l3 3L8 15l-4 1 1-4z" /><line x1="13.5" y1="3.5" x2="16.5" y2="6.5" /></>),
+  outline: (<><line x1="4" y1="6" x2="16" y2="6" /><line x1="4" y1="10" x2="16" y2="10" /><line x1="4" y1="14" x2="11" y2="14" /></>),
+  users: (<><circle cx="8" cy="7" r="3" /><path d="M3 18c0-3 2.5-5 5-5s5 2 5 5" /><path d="M14 8.5a3 3 0 0 1 0 5.5" /><path d="M16 18c0-2.5-1-4-3-4.5" /></>),
+  robot: (<><rect x="4" y="8" width="12" height="8" rx="2" /><circle cx="8" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><line x1="10" y1="4" x2="10" y2="8" /><line x1="6" y1="16" x2="4" y2="19" /><line x1="14" y1="16" x2="16" y2="19" /></>),
+  chart: (<><line x1="3" y1="17" x2="17" y2="17" /><rect x="5" y="11" width="3" height="6" /><rect x="10" y="7" width="3" height="10" /><rect x="15" y="13" width="3" height="4" /></>),
+  tag: (<><path d="M3 3h6l8 8-6 6-8-8z" /><circle cx="6.5" cy="6.5" r="1.2" /></>),
+  bulb: (<><path d="M10 3a5 5 0 0 0-3 9c.8.8 1 1.5 1 2.5h4c0-1 .2-1.7 1-2.5a5 5 0 0 0-3-9z" /><line x1="8.5" y1="17" x2="11.5" y2="17" /></>),
+  flame: (<><path d="M10 2c1.6 3-1.4 4.2-1.4 7a2.4 2.4 0 0 0 4.8 0c0 1.8 1.3 2.8 1.3 4.4a4.6 4.6 0 1 1-9.2 0C5.5 9 9 7 10 2z" /></>),
+  pen: (<><path d="M3 17l1-4L14 3l3 3L7 16z" /><line x1="14" y1="3" x2="17" y2="6" /></>),
+  warning: (<><path d="M10 3l8 14H2z" /><line x1="10" y1="9" x2="10" y2="13" /><circle cx="10" cy="15.5" r="0.8" fill="currentColor" stroke="none" /></>),
+  star: (<><path d="M10 3l2 4.8 5.2.4-4 3.5 1.3 5L10 14l-4.5 2.7L7 12.2l-4-3.5L8.5 8z" /></>),
+  sparkle: (<><path d="M10 2l1.6 4.4L16 8l-4.4 1.6L10 14l-1.6-4.4L4 8l4.4-1.6z" /></>),
+  rocket: (<><path d="M10 2c3 1.2 5 4 5 8 0 2-1 3.5-2 4.5l-1-1H8l-1 1c-1-1-2-2.5-2-4.5 0-4 2-6.8 5-8z" /><circle cx="10" cy="8" r="1.3" /><path d="M8 15l-1.5 3M12 15l1.5 3" /></>),
+  user: (<><circle cx="10" cy="7" r="3" /><path d="M4 18c0-3 2.5-5 6-5s6 2 6 5" /></>),
+  city: (<><rect x="4" y="9" width="4" height="8" /><rect x="10" y="5" width="4" height="12" /><rect x="16" y="11" width="3" height="6" /><line x1="3" y1="17" x2="19" y2="17" /></>),
+  search: (<><circle cx="8.5" cy="8.5" r="5" /><line x1="12" y1="12" x2="17" y2="17" /></>),
+  gear: (<><circle cx="10" cy="10" r="3" /><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.5 4.5l2 2M13.5 13.5l2 2M4.5 15.5l2-2M13.5 6.5l2-2" /></>),
+  clock: (<><circle cx="10" cy="10" r="7" /><line x1="10" y1="10" x2="10" y2="5.5" /><line x1="10" y1="10" x2="13.5" y2="11.5" /></>),
+  doc: (<><path d="M5 3h7l3 3v12H5z" /><line x1="8" y1="8" x2="13" y2="8" /><line x1="8" y1="11" x2="13" y2="11" /><line x1="8" y1="14" x2="11" y2="14" /></>),
+  check: (<><path d="M4 10.5l4 4 8-8" /></>),
+  swap: (<><path d="M4 7h11l-3-3M16 13H5l3 3" /></>),
+  activity: (<><path d="M3 12h4l2-6 4 12 2-6h4" /></>),
+  book: (<><path d="M4 5h6v13H5a1 1 0 0 1-1-1z" /><path d="M20 5h-6v13h5a1 1 0 0 0 1-1z" /></>),
+  pin: (<><path d="M10 2a4 4 0 0 0-4 4c0 3 4 9 4 9s4-6 4-9a4 4 0 0 0-4-4z" /><circle cx="10" cy="6" r="1.5" /></>),
+  lock: (<><rect x="5" y="9" width="10" height="8" rx="1.5" /><path d="M7 9V7a3 3 0 0 1 6 0v2" /></>),
+  clipboard: (<><rect x="5" y="4" width="10" height="15" rx="1.5" /><line x1="8" y1="4" x2="8" y2="2" /><line x1="12" y1="4" x2="12" y2="2" /><line x1="8" y1="9" x2="12" y2="9" /><line x1="8" y1="13" x2="12" y2="13" /></>),
+  mask: (<><path d="M4 9c0-4 4-6 6-6s6 2 6 6c0 3-2 6-6 6s-6-3-6-6z" /><path d="M7 11h.01M13 11h.01" /></>),
+  link: (<><path d="M8 12a3 3 0 0 0 4 0l2-2a3 3 0 0 0-4-4l-1 1" /><path d="M12 8a3 3 0 0 0-4 0l-2 2a3 3 0 0 0 4 4l1-1" /></>),
+  coder: (<><rect x="3" y="5" width="14" height="10" rx="1.5" /><path d="M6 19l2-4M14 19l-2-4" /><line x1="6.5" y1="9" x2="6.5" y2="9.01" /><line x1="9.5" y1="9" x2="9.5" y2="9.01" /><line x1="12.5" y1="9" x2="12.5" y2="9.01" /><line x1="6.5" y1="12" x2="6.5" y2="12.01" /><line x1="9.5" y1="12" x2="9.5" y2="12.01" /><line x1="12.5" y1="12" x2="12.5" y2="12.01" /></>),
+};
+
+const Icon = ({ name, size = 18 }: { name: IconName; size?: number }) => (
+  <svg className="nav-icon" width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {ICONS[name]}
+  </svg>
 );
 
 /* ---------- 侧边栏导航项 ---------- */
 const NavItems = [
-  { key: 'planning' as const, label: '开篇策划', icon: '🎯' },
-  { key: 'editor' as const, label: '写作', icon: '✏️' },
-  { key: 'outline' as const, label: '大纲', icon: '📑' },
-  { key: 'characters' as const, label: '角色', icon: '👥' },
-  { key: 'ai' as const, label: 'AI 助手', icon: '🤖' },
-  { key: 'stats' as const, label: '统计', icon: '📈' },
-];
+  { key: 'planning' as const, label: '开篇策划', icon: 'target' },
+  { key: 'editor' as const, label: '写作', icon: 'edit' },
+  { key: 'outline' as const, label: '大纲', icon: 'outline' },
+  { key: 'characters' as const, label: '角色', icon: 'users' },
+  { key: 'ai' as const, label: 'AI 助手', icon: 'robot' },
+  { key: 'stats' as const, label: '统计', icon: 'chart' },
+] as const;
 
 type TabKey = typeof NavItems[number]['key'];
 
@@ -80,6 +122,17 @@ const SELLLPOINT_EXAMPLES = [
   { genre: '赘婿逆袭', sell: '入赘三年被人当狗，直到老丈人跪下叫了一声龙王' },
   { genre: '都市脑洞', sell: '3天后他拿着2亿彩礼上门，我妈才发现他是我失联8年的亲哥' },
   { genre: '都市脑洞', sell: '被开除当天收到三份offer，最高那份来自前老板死对头' },
+  { genre: '都市脑洞', sell: '摸鱼划水三年，系统结算那天我成了全公司最强' },
+  { genre: '都市脑洞', sell: '全公司笑我废物，直到我代码修仙把服务器干崩了' },
+  { genre: '赘婿逆袭', sell: '入赘三年被当狗，直到老丈人跪下喊我一声龙王' },
+  { genre: '赘婿逆袭', sell: '离婚当天，前妻一家跪求复婚，我身后站着十八辆黑车' },
+  { genre: '玄幻修仙', sell: '全宗门笑我废柴，直到我剑指苍穹时天黑了半边' },
+  { genre: '历史军事', sell: '穿成亡国太子，我用现代基建把敌国卷成了我的藩属' },
+  { genre: '系统流', sell: '系统让我当反派，我反手把主角的剧本改成了我的' },
+  { genre: '科幻末世', sell: '末日降临那天，我发现丧尸见了我都绕道走' },
+  { genre: '游戏竞技', sell: '队友嘲我菜，直到我用手速打穿了职业联赛' },
+  { genre: '西幻领主', sell: '穿越成破产领主，我靠种田把荒原经营成了第一领地' },
+  { genre: '都市高武', sell: '灵气复苏那天，全校都笑我觉醒了最废的异能' },
   // 穿书/快穿类
   { genre: '穿书快穿', sell: '穿成恶毒女配后我摆烂了，结果追我的反派排到法国' },
   { genre: '穿书快穿', sell: '系统让我当恶毒女配，我反手成了团宠' },
@@ -91,10 +144,68 @@ const DEMO_CHAPTER_1 = '林小雨从没想过，自己会在雷雨夜撞上一�
 
 const DEMO_CHAPTER_2 = '面试通知是早上八点收到的。\n\n林小雨盯着手机屏幕看了三遍，确认不是群发短信。顾氏集团，设计岗，上午十点，带作品集。\n\n她翻出最好的那件白衬衫，熨了两遍，还是觉得不够挺。最后套了件黑色西装外套，对着镜子拽了拽领口。\n\n\u201C妈，我面试去了。\u201D\n\n她妈在厨房里没回头，手里的锅铲顿了一下：\u201C早去早回。\u201D\n\n——没问她面哪家。林小雨觉得正常，她妈从来不问这些。\n\n顾氏集团在新区CBD，玻璃幕墙从一楼贯到顶，阳光打上去像一块冰。她站在门口仰头看了两秒，深吸一口气，推门进去。\n\n前台让她填表，领了临时访客牌，坐电梯到22楼。\n\n走廊很安静，地毯吃掉了脚步声。她被带进一间会议室，对面坐着三个人，中间那个位子空着。\n\n\u201C林小姐是吧？先做个自我介绍。\u201D左边那个戴眼镜的女人说。\n\n她站起来，打开作品集，开始讲。\n\n讲到第三页的时候，会议室的门开了。\n\n一个人走进来，西装深灰，没打领带，步子不快不慢。\n\n他拉开中间那把椅子坐下，抬手示意她继续。\n\n她看了他一眼。\n\n然后她手里的翻页笔掉了。';
 
+/* 男频示范开篇（都市脑洞 / 赘婿逆袭）：前300字受辱出事 → 前1000字龙王令金手指亮 → 章末留钩 */
+const DEMO_CHAPTER_MALE_1 = `江砚在苏家当了三年上门女婿。
+三年里他没上过一次正桌，年夜饭坐楼梯口，春晚看一半，剩菜凉了才轮到他。
+苏家大女儿苏婉嫌他碍眼，小女儿苏檬当他透明。岳母周桂兰的原话是："招你进门是给我家添个倒贴的佣人，不是女婿。"
+今天是小女儿苏檬的生日宴。
+江砚照例在厨房剥虾，剥到第七只，周桂兰推门进来，围裙都没解。
+"别剥了。"她把一盘切好的果盘墩在他面前，"去厅里，跪下，学三声狗叫。"
+江砚手顿了一下。
+"学完，这婚就离。"周桂兰笑了，那种看他笑话的笑，"不学，你信不信我让你连夜滚出苏家，连你妈那点退休金都保不住？"
+厅里二十几号亲戚都听见了。没人拦。苏婉在旁边低头刷手机，嘴角翘着。
+江砚把虾放下。
+他没跪。
+他摸出手机。屏幕是黑的，但今天不一样——黑屏上自己浮出四个字，红得扎眼：
+【龙王令·启】。
+那是三年前他亲手按下的号码。当时有人告诉他：不到生死关头，别点开。点开，就再也回不去普通人的日子了。
+他以为这辈子用不上。
+可周桂兰的笑，苏婉的低头，苏檬的沉默，比生死关头还让他寒。
+他拇指按下去。
+手机震了一下。一条消息弹出来，发件人只有两个字：龙鳞。
+"江砚，东海十三城，今日认主。你岳母刚让人查的你妈退休金——查到了。告诉她，苏家明早之前，会从滨海消失。"
+江砚看着那行字，忽然觉得三年里咽下的所有饭，都成了今天这口气的分量。
+他把手机揣回兜，抬头看周桂兰。
+"妈。"他第一次没叫"岳母"，"我学不会狗叫。但我能让苏家，今晚就学会什么叫怕。"
+周桂兰的笑僵在脸上。
+她手里的果盘刀"当"地掉在地上。
+因为江砚身后，客厅落地窗外，不知什么时候停了七辆黑车。车上下来的人，她一个都惹不起——那是她丈夫提过一次、从此不许再提的名字：东海。`;
+
+const DEMO_CHAPTER_MALE_2 = `周桂兰弯下腰捡刀的时候，手是抖的。
+她抬头看江砚，眼神从"看笑话"变成了"看不懂"。
+"你……你什么意思？"她的声音第一次没了底气。
+江砚没回答。他走到苏檬生日蛋糕前，把那七根没点的蜡烛，一根一根按灭。
+"今晚的生日，过不成了。"他说，"但你姐的婚礼，倒是能提前。"
+苏婉猛地抬头："你胡说什么！"
+"三年前你嫁不出去，是因为你爸公司欠了东海两千万。"江砚看着她，"债主本来要收房子。是我，用龙鳞压了下去。你们家这三年住的好房子、开的体面车，花的是我替你们扛下来的债。"
+满厅死寂。
+苏婉脸色惨白。她当然知道家里欠过钱，但没人告诉她，是眼前这个"倒贴佣人"扛的。
+周桂兰终于反应过来，腿一软，差点坐地上："你……你是……"
+"我是谁不重要。"江砚打断她，"重要的是，从今天起，苏家的债，连本带利，算我的。但你们欠我的，不是钱。"
+他转身往门口走。
+到门边，他停了一下，没回头。
+"明天早上，我希望看到苏家所有人，跪在我妈面前，说一句对不起。做不到——"
+他笑了笑，很轻。
+"东海的规矩，欠了三年，得用三十年还。"
+门在他身后关上。
+厅里，苏婉第一个哭出声。周桂兰手里的刀，还掉在地上，没人敢捡。`;
+
 function createDemoProjects(): Project[] {
   return [
     {
       id: 'p1',
+      name: '龙王令',
+      genre: '都市脑洞',
+      status: '写作中',
+      targetWords: 40000,
+      chapters: [
+        { id: 'c1', title: '第一章 · 龙王令启', content: DEMO_CHAPTER_MALE_1 },
+        { id: 'c2', title: '第二章 · 苏家欠的债', content: DEMO_CHAPTER_MALE_2 },
+        { id: 'c3', title: '', content: '' },
+      ],
+    },
+    {
+      id: 'p2',
       name: '雨夜邂逅',
       genre: '都市言情',
       status: '写作中',
@@ -106,7 +217,7 @@ function createDemoProjects(): Project[] {
       ],
     },
     {
-      id: 'p2',
+      id: 'p3',
       name: '末路回声',
       genre: '悬疑推理',
       status: '策划中',
@@ -116,7 +227,7 @@ function createDemoProjects(): Project[] {
       ],
     },
     {
-      id: 'p3',
+      id: 'p4',
       name: '深渊之上',
       genre: '现代悬疑',
       status: '已完成',
@@ -213,7 +324,7 @@ function App() {
             const proj: Project = {
               id,
               name: msg.name,
-              genre: '都市言情',
+              genre: '都市脑洞',
               status: '策划中',
               targetWords: 40000,
               chapters: [{ id: genId(), title: '', content: '' }],
@@ -242,7 +353,7 @@ function App() {
     const proj: Project = {
       id,
       name: name || `新项目 ${projects.length + 1}`,
-      genre: '都市言情',
+      genre: '都市脑洞',
       status: '策划中',
       targetWords: 40000,
       chapters: [{ id: genId(), title: '', content: '' }],
@@ -292,13 +403,18 @@ function App() {
       {/* ====== 左侧导航栏 ====== */}
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-icon">🍅</span>
+          <svg className="brand-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="12" cy="13.5" r="7.5" fill="#E5483D" />
+            <path d="M12 6 C12 3 14 1.5 16.5 2.2 C15.2 4.2 13.2 5.2 12 6 Z" fill="#2BB673" />
+            <rect x="11" y="2.4" width="2" height="3.2" rx="1" fill="#2BB673" />
+            <path d="M8.5 12 q3.5 2.4 7 0" stroke="#ffffff" strokeWidth="1.1" fill="none" opacity="0.55" strokeLinecap="round" />
+          </svg>
           <span className="brand-text">番茄短篇</span>
         </div>
         <div className="project-badge" onClick={() => setShowProjectList(!showProjectList)}>
           <span className="project-name">{currentProject.name}</span>
           <span className={`project-status status--${currentProject.status}`}>{currentProject.status}</span>
-          <Icon size={14}>⇅</Icon>
+          <Icon name="swap" size={14} />
         </div>
 
         {showProjectList && (
@@ -326,7 +442,7 @@ function App() {
               onClick={() => setActiveTab(item.key)}
               title={item.label}
             >
-              <Icon>{item.icon}</Icon>
+              <Icon name={item.icon} />
               <span className="nav-label">{item.label}</span>
               {activeTab === item.key && <span className="nav-indicator" />}
             </button>
@@ -429,7 +545,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
     setBookTitleError('');
     setBookTitleResults('');
 
-    const userPrompt = `题材：${genre}\n书名：${projectName}\n核心卖点：${sellingPoint || '暂无'}\n\n请生成 10 个番茄爆款书名，按"具体数字+时间锚点+反转钩"公式。`;
+    const userPrompt = `题材：${genre}\n书名：${projectName}\n核心卖点：${sellingPoint || '暂无'}\n\n请生成 10 个番茄爆款书名，三种风格（数字反转长钩 / 短悍意象 / 反差人设）都要覆盖。`;
     
     callAI([
       { role: 'system', content: BOOK_TITLE_PROMPT },
@@ -469,12 +585,12 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
   }, [genre]);
 
   const steps = [
-    { label: '题材定位', icon: '🏷️' },
-    { label: '核心卖点', icon: '💡' },
-    { label: '爆款标题', icon: '🔥' },
-    { label: '开篇设计', icon: '✍️' },
-    { label: '字数规划', icon: '📊' },
-  ];
+    { label: '题材定位', icon: 'tag' },
+    { label: '核心卖点', icon: 'bulb' },
+    { label: '爆款标题', icon: 'flame' },
+    { label: '开篇设计', icon: 'pen' },
+    { label: '字数规划', icon: 'chart' },
+  ] as const;
 
   const handleComplete = () => {
     // 保存策划数据到项目
@@ -490,7 +606,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
   return (
     <div className="panel planning-panel">
       <div className="panel-header-row">
-        <h2 className="panel-title">🎯 开篇策划</h2>
+        <h2 className="panel-title">开篇策划</h2>
         <span className="badge badge--warn">{project.status === '策划中' ? '策划中 · 5步完成' : '已完成策划'}</span>
       </div>
 
@@ -501,7 +617,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
             className={`plan-step ${i === step ? 'current' : ''} ${i < step ? 'done' : ''}`}
             onClick={() => setStep(i)}
           >
-            <span className="step-icon">{i < step ? '✓' : s.icon}</span>
+            <span className="step-icon"><Icon name={i < step ? 'check' : s.icon} size={16} /></span>
             <span className="step-label">{s.label}</span>
           </button>
         ))}
@@ -523,7 +639,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
               />
             </div>
             {/* ===== 女频赛道（12个）===== */}
-            <div className="genre-section-label">🌸 女频赛道</div>
+            <div className="genre-section-label">女频赛道</div>
             <div className="genre-grid">
               {[
                 { name: '现代言情', desc: '甜宠·虐恋·带球跑，番茄女频基本盘，过稿最快', hot: true, audience: '18-35岁女性' },
@@ -543,14 +659,14 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                 >
                   <strong>{g.name}</strong>
                   <small className="muted">{g.desc}</small>
-                  <span className="genre-audience">👥 {g.audience}</span>
-                  {g.hot && <span className="hot-tag">🔥 热门</span>}
+                  <span className="genre-audience">{g.audience}</span>
+                  {g.hot && <span className="hot-tag">热门</span>}
                 </button>
               ))}
             </div>
 
             {/* ===== 男频赛道（10个）===== */}
-            <div className="genre-section-label" style={{ marginTop: 16 }}>🔥 男频赛道</div>
+            <div className="genre-section-label" style={{ marginTop: 16 }}>男频赛道</div>
             <div className="genre-grid">
               {[
                 { name: '都市脑洞', desc: '异能+反套路金手指，男频TOP1，完读率76%', hot: true, audience: '25-35岁男性' },
@@ -561,6 +677,8 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                 { name: '科幻末世', desc: '无限流·末日求生，新兴赛道蓝海', hot: false, audience: '20-35岁男性' },
                 { name: '游戏竞技', desc: '电竞·网游·直播，年轻男性受众', hot: false, audience: '16-25岁男性' },
                 { name: '系统流', desc: 'AI反内卷等新金手指玩法，经典不衰', hot: false, audience: '22-35岁男性' },
+                { name: '都市高武', desc: '男频吸量两极之一，灵气复苏+扮猪吃虎，反套路异能', hot: true, audience: '18-35岁男性' },
+                { name: '西幻领主', desc: '领地养成+家族成长，男频蓝海竞争仅为都市高武1/3', hot: false, audience: '20-35岁男性' },
               ].map(g => (
                 <button
                   key={g.name}
@@ -569,8 +687,8 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                 >
                   <strong>{g.name}</strong>
                   <small className="muted">{g.desc}</small>
-                  <span className="genre-audience">👥 {g.audience}</span>
-                  {g.hot && <span className="hot-tag">🔥 热门</span>}
+                  <span className="genre-audience">{g.audience}</span>
+                  {g.hot && <span className="hot-tag">热门</span>}
                 </button>
               ))}
             </div>
@@ -635,11 +753,11 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
             </div>
             <div className="sellpoint-examples">
               <h4>
-                🔥 番茄爆款卖点参考
-                {isLoadingSellpoint ? <span className="badge badge--loading">🤖 AI生成中...</span> : 
+                番茄爆款卖点参考
+                {isLoadingSellpoint ? <span className="badge badge--loading">AI生成中...</span> : 
                  sellpointResults ? <span className="badge badge--success">✅ AI已生成</span> : 
                  aiReady ? <span className="badge badge--info">点击下一步触发</span> : 
-                 <span className="badge badge--warn">⚙️ 未配置AI</span>}
+                 <span className="badge badge--warn">未配置AI</span>}
               </h4>
               
               {isLoadingSellpoint ? (
@@ -650,7 +768,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
               ) : sellpointResults ? (
                 <div className="sellpoint-ai-results">
                   <p className="plan-hint" style={{ marginTop: 0, marginBottom: 12 }}>
-                    🤖 AI根据当前题材 <strong>{genre}</strong> 生成的卖点选项
+                    AI根据当前题材 <strong>{genre}</strong> 生成的卖点选项
                   </p>
                   <div className="sellpoint-ai-list">
                     {sellpointResults.split('\n').filter(line => {
@@ -658,7 +776,6 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                       // 跳过空行、标题行和推荐标记行
                       if (!trimmed) return false;
                       if (trimmed.includes('促销文案') || trimmed.includes('卖点选项') || trimmed.includes('、时效性')) return false;
-                      if (trimmed.startsWith('⭐')) return false;
                       return true;
                     }).map((line, i) => {
                       const trimmed = line.trim();
@@ -675,18 +792,18 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                         >
                           <span className="sellpoint-ai-num">{i + 1}</span>
                           <span className="sellpoint-ai-text">{sellText}</span>
-                          {match && match[2] && <span className="sellpoint-ai-hook">🎯 {match[2].trim()}</span>}
+                          {match && match[2] && <span className="sellpoint-ai-hook">{match[2].trim()}</span>}
                         </div>
                       );
                     }).filter(Boolean)}
                   </div>
                   <p className="plan-hint" style={{ fontSize: 12, marginTop: 8 }}>
-                    💡 点击任意选项可填入上方卖点输入框
+                    点击任意选项可填入上方卖点输入框
                   </p>
                 </div>
               ) : sellpointError ? (
                 <div className="sellpoint-ai-error">
-                  <p>⚠️ AI生成失败：{sellpointError}</p>
+                  <p>AI生成失败：{sellpointError}</p>
                   {genre && (
                     <button 
                       className="btn btn--small" 
@@ -730,6 +847,15 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                             if (ex.genre.includes('悬疑') && genre.includes('悬疑')) return true;
                             if (ex.genre.includes('赘婿') && genre.includes('赘婿')) return true;
                             if (ex.genre.includes('穿书') && genre.includes('穿书')) return true;
+                            if (ex.genre.includes('脑洞') && genre.includes('脑洞')) return true;
+                            if (ex.genre.includes('玄幻') && genre.includes('玄幻')) return true;
+                            if (ex.genre.includes('高武') && genre.includes('高武')) return true;
+                            if (ex.genre.includes('西幻') && genre.includes('西幻')) return true;
+                            if (ex.genre.includes('历史') && genre.includes('历史')) return true;
+                            if (ex.genre.includes('系统') && genre.includes('系统')) return true;
+                            if (ex.genre.includes('科幻') && genre.includes('科幻')) return true;
+                            if (ex.genre.includes('末世') && genre.includes('末世')) return true;
+                            if (ex.genre.includes('游戏') && genre.includes('游戏')) return true;
                             return false;
                           })
                         : SELLLPOINT_EXAMPLES;
@@ -769,19 +895,21 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                 </div>
               </div>
               <div className="formula-examples">
-                <h4>📌 各赛道爆款标题范例</h4>
+                <h4>各赛道爆款标题范例</h4>
                 <div className="formula-example-item"><strong>都市脑洞：</strong>3天后他拿着2亿彩礼上门，我妈才发现他是我失联8年的亲哥</div>
                 <div className="formula-example-item"><strong>重生年代：</strong>重生80年代，我靠空间囤货成首富，前夫后悔哭了</div>
                 <div className="formula-example-item"><strong>豪门总裁：</strong>闪婚残疾大佬3个月，他站起来了，还我失散20年的哥哥</div>
                 <div className="formula-example-item"><strong>悬疑灵异：</strong>每死一个人我继承一项技能，第7个死者是我爸</div>
                 <div className="formula-example-item"><strong>穿书快穿：</strong>穿成恶毒女配后我摆烂了，结果追我的反派排到法国</div>
+                <div className="formula-example-item"><strong>赘婿逆袭：</strong>入赘三年被当狗，直到老丈人跪下喊我一声龙王</div>
+                <div className="formula-example-item"><strong>都市高武：</strong>灵气复苏那天，全校都笑我觉醒了最废的异能</div>
               </div>
               <div className="title-warnings">
-                <h4>⚠️ 标题禁忌</h4>
+                <h4>标题禁忌</h4>
                 <ul>
-                  <li>❌ 不要纯文学标题（如"岁月如歌""青春散场"——读者不点）</li>
-                  <li>❌ 不要模糊不清（如"他的故事""那段时光"——不知道讲啥）</li>
-                  <li>❌ 不要超过30字（太长记不住）</li>
+                  <li>不要纯文学标题（如"岁月如歌""青春散场"——读者不点）</li>
+                  <li>不要模糊不清（如"他的故事""那段时光"——不知道讲啥）</li>
+                  <li>不要超过30字（太长记不住）</li>
                   <li>✅ 要有具体数字、时间锚点、反转钩</li>
                   <li>✅ 让读者看到标题就想点进去看"为什么"</li>
                 </ul>
@@ -791,7 +919,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
             {/* AI 一键生成书名 */}
             <div className="book-title-ai">
               <div className="book-title-ai-header">
-                <div className="book-title-ai-icon">📕</div>
+                <div className="book-title-ai-icon"><Icon name="book" /></div>
                 <div className="book-title-ai-info">
                   <h4>起书名</h4>
                   <p className="muted">一键生成10个爆款书名</p>
@@ -814,20 +942,19 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
               
               {bookTitleError && (
                 <div className="book-title-ai-error">
-                  ⚠️ {bookTitleError}
+                  {bookTitleError}
                 </div>
               )}
               
               {bookTitleResults && !isLoadingBookTitle && (
                 <div className="book-title-ai-results">
                   <p className="plan-hint" style={{ marginTop: 0, marginBottom: 10 }}>
-                    🤖 AI 已生成 10 个书名，点击可直接填入标题
+                    AI 已生成 10 个书名，点击可直接填入标题
                   </p>
                   <div className="book-title-ai-list">
                     {bookTitleResults.split('\n').filter(line => {
                       const trimmed = line.trim();
                       if (!trimmed) return false;
-                      if (trimmed.startsWith('⭐')) return false;
                       if (trimmed.startsWith('书名') || trimmed.startsWith('推荐') || trimmed.includes('钩子点')) return false;
                       return /^\d+\./.test(trimmed);
                     }).map((line, i) => {
@@ -850,13 +977,13 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                         >
                           <span className="book-title-ai-num">{i + 1}</span>
                           <span className="book-title-ai-text">{titleText}</span>
-                          {hookText && <span className="book-title-ai-hook">🎯 {hookText}</span>}
+                          {hookText && <span className="book-title-ai-hook">{hookText}</span>}
                         </div>
                       );
                     }).filter(Boolean)}
                   </div>
                   <p className="plan-hint" style={{ fontSize: 12, marginTop: 8 }}>
-                    💡 点击任意书名可填入上方标题方案
+                    点击任意书名可填入上方标题方案
                   </p>
                 </div>
               )}
@@ -879,7 +1006,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                   {titleIdeas.length > 1 && (
                     <button className="btn btn--ghost btn--sm" onClick={() => {
                       setTitleIdeas(titleIdeas.filter((_, j) => j !== i));
-                    }}>✕</button>
+                    }}>×</button>
                   )}
                 </div>
               ))}
@@ -907,14 +1034,17 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                 <OpeningTemplate type="时间倒流" desc="用时间差制造悬念" example="我死后第7天，老公发了条朋友圈：终于自由了。我站在他身后，看着这条朋友圈，想告诉他我也不自由了——因为我变成了鬼。" />
                 <OpeningTemplate type="身份揭露" desc="第一句就揭露惊人身份/秘密" example="所有人都以为顾寒川是普通打工人。直到他妈打电话来：'儿子，顾氏集团上市了，你作为大股东记得去敲钟。'" />
                 <OpeningTemplate type="物品悬疑" desc="用一个神秘物品引出一个大秘密" example="那只怀表掉在雨地上的时候，林小雨没在意。直到她妈看到它，手里的碗直接碎了。'哪里来的？''一个陌生人掉的。''昨天面试我的那个。'" />
+                <OpeningTemplate type="男频打脸钩" desc="先给极致羞辱，再用信息差反杀（男频核心爽点）" example="江砚在苏家当了三年上门女婿。今天小女儿生日宴，岳母让他当众跪下学三声狗叫，否则离婚。他没跪——手机黑屏上自己浮出四个字：龙王令·启。" />
+                <OpeningTemplate type="男频信息差钩" desc="主角知道、反派不知道，读者跟着主角碾压（男频=信息差）" example="全公司都笑陈默是关系户废物。只有陈默自己知道，三年前那笔让公司起死回生的投资，签字人是他。" />
+                <OpeningTemplate type="男频憋屈引爆钩" desc="受辱现状+金手指征兆+第一个打脸苗头（赘婿/战神通用）" example="灵气复苏那天，全校都笑林霄觉醒了最废的异能。他没解释。直到测验场上，他一拳把测力石打出了裂纹。" />
               </div>
             </div>
             <div className="opening-warnings">
-              <h4>⚠️ 开篇禁忌（编辑审稿只看前300字）</h4>
+              <h4>开篇禁忌（编辑审稿只看前300字）</h4>
               <ul>
-                <li>❌ 不要大段环境描写（读者3秒内没钩子就划走）</li>
-                <li>❌ 不要缓慢铺垫（前300字必须出冲突/悬念/反差）</li>
-                <li>❌ 不要多POV切换（开篇聚焦主视角，不要跳）</li>
+                <li>不要大段环境描写（读者3秒内没钩子就划走）</li>
+                <li>不要缓慢铺垫（前300字必须出冲突/悬念/反差）</li>
+                <li>不要多POV切换（开篇聚焦主视角，不要跳）</li>
                 <li>✅ 第一句就要有冲突/悬念/反差（让读者问"为什么"）</li>
                 <li>✅ 前500字立住场景 + 人物 + 核心冲突</li>
               </ul>
@@ -944,7 +1074,7 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
               />
               {openingDraft && (
                 <small className="muted" style={{ marginTop: 4, display: 'block' }}>
-                  当前字数：{countWords(openingDraft)} 字 {countWords(openingDraft) >= 500 ? '✓ 达标' : `（还需 ${500 - countWords(openingDraft)} 字）`}
+                  当前字数：{countWords(openingDraft)} 字 {countWords(openingDraft) >= 500 ? '达标' : `（还需 ${500 - countWords(openingDraft)} 字）`}
                 </small>
               )}
             </div>
@@ -974,18 +1104,21 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                 </div>
                 <div className="word-recommend">
                   <span className="rec-tag rec--short">短篇 1-3万</span>
-                  <span className="rec-tag rec--medium">中篇 3-5万 ⭐推荐</span>
+                  <span className="rec-tag rec--medium">中篇 3-5万 · 推荐</span>
                   <span className="rec-tag rec--long">长篇 5-10万</span>
                 </div>
               </div>
               <div className="word-plan-card">
                 <strong>不同赛道字数建议</strong>
                 <ul className="word-suggestions">
-                  <li>🔥 <strong>都市脑洞/甜宠</strong>：3-5万字，节奏快，10章内出大爽点</li>
-                  <li>🔥 <strong>悬疑推理</strong>：5-8万字，线索要埋，反转要合理</li>
-                  <li>⭐ <strong>重生年代文</strong>：6-10万字，时代细节要写，节奏可稍慢</li>
-                  <li>⭐ <strong>古言宫斗</strong>：8-12万字，人物关系复杂，需要篇幅铺陈</li>
-                  <li>💡 <strong>穿书快穿</strong>：4-6万字，单元剧形式，每个任务2-3章</li>
+                  <li><strong>都市脑洞/甜宠</strong>：3-5万字，节奏快，10章内出大爽点</li>
+                  <li><strong>悬疑推理</strong>：5-8万字，线索要埋，反转要合理</li>
+                  <li><strong>重生年代文</strong>：6-10万字，时代细节要写，节奏可稍慢</li>
+                  <li><strong>古言宫斗</strong>：8-12万字，人物关系复杂，需要篇幅铺陈</li>
+                  <li><strong>穿书快穿</strong>：4-6万字，单元剧形式，每个任务2-3章</li>
+                  <li><strong>赘婿逆袭/战神</strong>：3-5万字，先憋屈后封神，打脸密度要高</li>
+                  <li><strong>都市高武/脑洞</strong>：3-5万字，金手指早亮，每3章一个小爽点</li>
+                  <li>📚 <strong>玄幻修仙/西幻</strong>：5-8万字，世界观要铺，升级节奏稳</li>
                 </ul>
               </div>
               <div className="word-plan-card">
@@ -1019,18 +1152,18 @@ function PlanningPanel({ project, aiReady, onComplete, onUpdateProject }: {
                   <li>✅ 每章结尾留 <strong>悬念或转折</strong>，让读者忍不住点下一章</li>
                   <li>✅ <strong>日更2000字+</strong>，断更超过3天推荐量掉50%</li>
                   <li>✅ <strong>完读率&gt;40%</strong> 才有机会上热门推荐位</li>
-                  <li>⚠️ 超 10万字 需转长篇赛道，短篇不收</li>
-                  <li>⚠️ <strong>避免敏感内容</strong>：政治、宗教、色情、过度血暴</li>
-                  <li>⚠️ <strong>不要抄袭/洗稿</strong>：番茄有AI查重系统，直接封号</li>
-                  <li>💡 <strong>适配短剧改编</strong>：每10章1个大高潮，改编率更高</li>
-                  <li>💡 <strong>封面很重要</strong>：找专业画师，别用AI生成（编辑能看出来）</li>
-                  <li>💡 <strong>书名即卖点</strong>：标题里要有数字/时间/反转，不要文艺范</li>
+                  <li>超 10万字 需转长篇赛道，短篇不收</li>
+                  <li><strong>避免敏感内容</strong>：政治、宗教、色情、过度血暴</li>
+                  <li><strong>不要抄袭/洗稿</strong>：番茄有AI查重系统，直接封号</li>
+                  <li><strong>适配短剧改编</strong>：每10章1个大高潮，改编率更高</li>
+                  <li><strong>封面很重要</strong>：找专业画师，别用AI生成（编辑能看出来）</li>
+                  <li><strong>书名即卖点</strong>：标题里要有数字/时间/反转，不要文艺范</li>
                 </ul>
               </div>
             </div>
             <div className="plan-nav">
               <button className="btn btn--ghost" onClick={() => setStep(3)}>← 上一步</button>
-              <button className="btn btn--primary" onClick={handleComplete}>✓ 完成策划，开始写作 →</button>
+              <button className="btn btn--primary" onClick={handleComplete}>完成策划，开始写作 →</button>
             </div>
           </div>
         )}
@@ -1102,7 +1235,7 @@ function EditorPanel({ project, totalWords, onUpdateChapter, onAddChapter, onDel
   const wordCount = countWords(activeChapter.content);
   const targetChapter = 2500;
   const wordStatus = wordCount >= targetChapter ? 'ok' : 'warn';
-  const wordStatusText = wordCount >= targetChapter ? '✓ 达标' : `${targetChapter - wordCount}字达标`;
+  const wordStatusText = wordCount >= targetChapter ? '达标' : `${targetChapter - wordCount}字达标`;
 
   const handleContentChange = (value: string) => {
     onUpdateChapter(activeChapter.id, { content: value });
@@ -1126,7 +1259,7 @@ function EditorPanel({ project, totalWords, onUpdateChapter, onAddChapter, onDel
         <div className="toolbar-group">
           <button className="btn btn--ghost btn--sm" onClick={onAddChapter} title="新建章节">+ 新章节</button>
           <button className="btn btn--ghost btn--sm" onClick={handleSave} title="保存">
-            {saved ? '✓ 已保存' : '💾 保存'}
+            {saved ? '已保存' : '保存'}
           </button>
           {project.chapters.length > 1 && (
             <button className="btn btn--ghost btn--sm" onClick={() => onDeleteChapter(activeChapter.id)} title="删除当前章节" style={{ color: '#e74c3c' }}>🗑 删除</button>
@@ -1134,8 +1267,8 @@ function EditorPanel({ project, totalWords, onUpdateChapter, onAddChapter, onDel
         </div>
         <div className="toolbar-group">
           <span className="toolbar-divider" />
-          <button className="btn btn--ghost btn--sm" title="AI 续写">🤖 续写</button>
-          <button className="btn btn--ghost btn--sm" title="润色">✨ 润色</button>
+          <button className="btn btn--ghost btn--sm" title="AI 续写">续写</button>
+          <button className="btn btn--ghost btn--sm" title="润色">润色</button>
         </div>
       </div>
 
@@ -1184,7 +1317,7 @@ function EditorPanel({ project, totalWords, onUpdateChapter, onAddChapter, onDel
           </div>
           <div className="editor-footer">
             <span className="footer-hint">
-              {saved ? '✓ 已自动保存' : '输入中...'} · Ctrl+Enter AI 续写 · 全书 {totalWords.toLocaleString()} 字
+              {saved ? '已自动保存' : '输入中...'} · Ctrl+Enter AI 续写 · 全书 {totalWords.toLocaleString()} 字
             </span>
             <span className="footer-pos">第 {project.chapters.findIndex(c => c.id === activeChapterId) + 1} / {project.chapters.length} 章</span>
           </div>
@@ -1220,7 +1353,7 @@ function OutlinePanel({ project }: { project: Project }) {
       </div>
 
       <div className="outline-grid">
-        <Card title="故事主线" icon="📖" accent="#e67e22">
+        <Card title="故事主线" icon="book" accent="#e67e22">
           <p className="card-text">{project.status === '策划中'
             ? '还没填故事主线？先去"开篇策划"把题材和卖点定下来，大纲才好写。'
             : `${project.name}：${project.genre}题材短篇，目标${project.targetWords.toLocaleString()}字，已写${project.chapters.reduce((s, c) => s + countWords(c.content), 0).toLocaleString()}字。`}</p>
@@ -1231,7 +1364,7 @@ function OutlinePanel({ project }: { project: Project }) {
           </div>
         </Card>
 
-        <Card title="节奏安排" icon="〰️" accent="#3498db">
+        <Card title="节奏安排" icon="activity" accent="#3498db">
           <div className="pace-list">
             <PaceRow step={1} name="开篇钩子" desc="前500字立住场景+悬念" pace="快" />
             <PaceRow step={2} name="发展" desc="线索逐条浮现，关系推进" pace="中" />
@@ -1241,7 +1374,7 @@ function OutlinePanel({ project }: { project: Project }) {
           </div>
         </Card>
 
-        <Card title="分章细纲" icon="📋" accent="#2ecc71" wide>
+        <Card title="分章细纲" icon="clipboard" accent="#2ecc71" wide>
           <table className="detail-table">
             <thead>
               <tr><th>#</th><th>章节名</th><th>字数</th><th>状态</th></tr>
@@ -1270,12 +1403,12 @@ function OutlinePanel({ project }: { project: Project }) {
 }
 
 function Card({ title, icon, children, accent, wide }: {
-  title: string; icon: string; children: React.ReactNode; accent?: string; wide?: boolean;
+  title: string; icon: IconName; children: React.ReactNode; accent?: string; wide?: boolean;
 }) {
   return (
     <div className={`card ${wide ? 'card--wide' : ''}`} style={{ '--accent': accent } as React.CSSProperties}>
       <div className="card-header">
-        <span className="card-icon">{icon}</span>
+        <span className="card-icon"><Icon name={icon} /></span>
         <h3 className="card-title">{title}</h3>
       </div>
       <div className="card-body">{children}</div>
@@ -1313,7 +1446,7 @@ function CharactersPanel({ project }: { project: Project }) {
 
       <div className="char-grid">
         {/* ===== 都市 / 现言赛道 ===== */}
-        <div className="char-section-label">🏙️ 都市 / 现言</div>
+        <div className="char-section-label">都市 / 现言</div>
         <CharacterCard
           name="林小雨"
           role="女主角"
@@ -1351,7 +1484,7 @@ function CharactersPanel({ project }: { project: Project }) {
         />
 
         {/* ===== 悬疑赛道 ===== */}
-        <div className="char-section-label" style={{ marginTop: 16 }}>🔍 悬疑 / 推理</div>
+        <div className="char-section-label" style={{ marginTop: 16 }}>悬疑 / 推理</div>
         <CharacterCard
           name="陆建明"
           role="主角·悬疑"
@@ -1390,14 +1523,34 @@ function CharactersPanel({ project }: { project: Project }) {
           color="#9b59b6"
           tags={['旧账持有者', '沉默守护', '深藏往事']}
         />
+
+        {/* ===== 男频赛道（都市脑洞 / 赘婿逆袭） ===== */}
+        <div className="char-section-label" style={{ marginTop: 16 }}>男频 / 都市脑洞</div>
+        <CharacterCard
+          name="江砚"
+          role="男主角·男频"
+          age="27"
+          trait="入赘苏家三年，被当倒贴佣人。实为东海十三城之主「龙王」，金手指是龙鳞与龙王令——能调动地下世界资源。他藏九分露一分，用信息差碾压所有看不起他的人。前300字被逼学狗叫，前1000字龙王令亮，读者立刻知道他要翻。"
+          color="#c0392b"
+          tags={['隐忍型男主', '信息差碾压', '反套路金手指']}
+        />
+        <CharacterCard
+          name="周桂兰"
+          role="反派·岳母"
+          age="54"
+          trait="势利眼教科书。把上门女婿当佣人使唤，生日宴上当众逼江砚跪地学狗叫，还拿他母亲的退休金威胁。她最大的误判，是以为眼前这个「倒贴佣人」真的什么都不是。"
+          color="#7f8c8d"
+          tags={['典型恶婆婆', '势利打脸对象', '信息盲区']}
+        />
+
       </div>
 
       <div className="world-section">
         <h3 className="section-label">世界观设定</h3>
         <div className="world-cards">
-          <WorldCard title="时间地点" content="2024年夏，滨海市（虚构一线城市）。老城区弄堂 vs 新区CBD，两个世界隔一条江。" icon="🏙️" />
-          <WorldCard title="核心场景" content="顾氏集团总部（冰冷的玻璃盒子）、老城弄堂（林母饭馆，油烟和旧照片）、江边咖啡厅（两人的灰色地带）、周家旧宅（已经改成民办诊所，但地下室没拆）" icon="📍" />
-          <WorldCard title="隐藏设定" content="鹰纹怀表 = 顾家第二代身份信物。周静兰二十年前是顾家二少爷的未婚妻——那场意外失踪之后，她带着孩子离开了所有与顾家有关的东西。" icon="🔐" />
+          <WorldCard title="时间地点" content="2024年夏，滨海市（虚构一线城市）。老城区弄堂 vs 新区CBD，两个世界隔一条江。" icon="city" />
+          <WorldCard title="核心场景" content="顾氏集团总部（冰冷的玻璃盒子）、老城弄堂（林母饭馆，油烟和旧照片）、江边咖啡厅（两人的灰色地带）、周家旧宅（已经改成民办诊所，但地下室没拆）" icon="pin" />
+          <WorldCard title="隐藏设定" content="鹰纹怀表 = 顾家第二代身份信物。周静兰二十年前是顾家二少爷的未婚妻——那场意外失踪之后，她带着孩子离开了所有与顾家有关的东西。" icon="lock" />
         </div>
       </div>
     </div>
@@ -1425,10 +1578,10 @@ function CharacterCard({ name, role, age, trait, color, tags }: {
   );
 }
 
-function WorldCard({ title, content, icon }: { title: string; content: string; icon: string }) {
+function WorldCard({ title, content, icon }: { title: string; content: string; icon: IconName }) {
   return (
     <div className="world-card">
-      <span className="world-card-icon">{icon}</span>
+      <span className="world-card-icon"><Icon name={icon} /></span>
       <div>
         <strong>{title}</strong>
         <p>{content}</p>
@@ -1441,16 +1594,16 @@ function WorldCard({ title, content, icon }: { title: string; content: string; i
  * AI 辅助面板
  * ================================================================ */
 const AI_FUNCTIONS = [
-  { icon: '📕', label: '起书名', desc: '一键生成10个爆款书名', prompt: '', autoRun: true },
-  { icon: '🏷️', label: '起角色名', desc: '一键生成10个角色名', prompt: '', autoRun: true },
-  { icon: '✍️', label: '续写', desc: '根据上下文续写下文', prompt: '请帮我续写下面的内容：\n\n', autoRun: false },
-  { icon: '✨', label: '润色', desc: '优化文笔和表达', prompt: '请帮我润色以下文字，保持原意但让文笔更好：\n\n', autoRun: false },
-  { icon: '📝', label: '扩写', desc: '丰富细节和描写', prompt: '请帮我扩写以下内容，增加细节和场景描写：\n\n', autoRun: false },
-  { icon: '💡', label: '灵感', desc: '获取剧情走向建议', prompt: '我写到这里卡住了，请给我3个剧情走向建议：\n\n', autoRun: false },
-  { icon: '🎭', label: '对白', desc: '生成角色对话', prompt: '请根据以下角色设定生成一段对话：\n\n', autoRun: false },
-  { icon: '🔍', label: 'AI味检测', desc: '检测文本AI痕迹', prompt: '请检测以下文本的AI味浓度：\n\n', autoRun: false },
-  { icon: '🔗', label: '逻辑检查', desc: '检查剧情逻辑漏洞', prompt: '请检查以下内容的逻辑一致性：\n\n', autoRun: false },
-  { icon: '👨‍💻', label: '番茄主编评价', desc: '模拟主编审稿评价', prompt: '请以番茄小说主编视角评价以下稿件：\n\n', autoRun: false },
+  { icon: 'book', label: '起书名', desc: '一键生成10个爆款书名', prompt: '', autoRun: true },
+  { icon: 'tag', label: '起角色名', desc: '一键生成10个角色名', prompt: '', autoRun: true },
+  { icon: 'pen', label: '续写', desc: '根据上下文续写下文', prompt: '请帮我续写下面的内容：\n\n', autoRun: false },
+  { icon: 'sparkle', label: '润色', desc: '优化文笔和表达', prompt: '请帮我润色以下文字，保持原意但让文笔更好：\n\n', autoRun: false },
+  { icon: 'doc', label: '扩写', desc: '丰富细节和描写', prompt: '请帮我扩写以下内容，增加细节和场景描写：\n\n', autoRun: false },
+  { icon: 'bulb', label: '灵感', desc: '获取剧情走向建议', prompt: '我写到这里卡住了，请给我3个剧情走向建议：\n\n', autoRun: false },
+  { icon: 'mask', label: '对白', desc: '生成角色对话', prompt: '请根据以下角色设定生成一段对话：\n\n', autoRun: false },
+  { icon: 'search', label: 'AI味检测', desc: '检测文本AI痕迹', prompt: '请检测以下文本的AI味浓度：\n\n', autoRun: false },
+  { icon: 'link', label: '逻辑检查', desc: '检查剧情逻辑漏洞', prompt: '请检查以下内容的逻辑一致性：\n\n', autoRun: false },
+  { icon: 'coder', label: '番茄主编评价', desc: '模拟主编审稿评价', prompt: '请以番茄小说主编视角评价以下稿件：\n\n', autoRun: false },
 ];
 
 // 模拟 AI 回复（未接入 API Key 时的演示回复）
@@ -1459,7 +1612,7 @@ function mockAIResponse(fnLabel: string, _userInput: string): string {
     '续写': '（演示模式 — 接入 API Key 后将获得真实续写）\n\n她站在原地，看着他的背影消失在雨幕里。怀表的金属表面冰凉，贴在掌心，却像有温度一样发烫。\n\n她不知道为什么，总觉得这件事不会就这样结束。',
     '润色': '（演示模式 — 接入 API Key 后将获得真实润色）\n\n已为你优化了表达节奏，增强了画面感和情绪张力。建议在描写中加入更多五感细节（触觉、嗅觉），让读者更有代入感。',
     '扩写': '（演示模式 — 接入 API Key 后将获得真实扩写）\n\n已为你扩展了场景细节：雨势、灯光、人物微表情。增加了环境描写来烘托紧张氛围。',
-    '起书名': '【番茄爆款书名候选】\n\n1. 3天后他拿着2亿彩礼上门，我妈才发现他是我失联8年的亲哥 —— 钩子：身份反转+金钱冲击\n2. 结婚3年老公失联，第4年他带着私生子出现在我父亲葬礼上 —— 钩子：时间跨度+葬礼冲突\n3. 我死后第7天，老公发了条朋友圈：终于自由了 —— 钩子：死后视角+反转\n4. 被开除当天，我收到了前老板死对头的offer —— 钩子：打脸+逆袭\n5. 闪婚对象竟是对头公司CEO，婚后才发现他早就知道我是谁 —— 钩子：身份+知情反转\n6. 1次雨夜偶遇，掀翻了两家人20年的旧账 —— 钩子：数字+时间+旧账\n7. 离婚当天前夫死了，留给我的遗产里有一段我没听过的录音 —— 钩子：死亡+录音悬念\n8. 替嫁3年没人发现我是假的，直到真的那个回来了 —— 钩子：替身+真假对峙\n9. 7年前我救的人，现在是我面试官，他假装不认识我 —— 钩子：恩情+假装\n10. 我爸欠债2亿跑路，债主找上门那天我才知道他是我亲哥 —— 钩子：欠债+血缘反转\n\n⭐ 推荐前3：第1、第5、第10个',
+    '起书名': '【番茄爆款书名候选】\n\n1. 3天后他拿着2亿彩礼上门，我妈才发现他是我失联8年的亲哥 —— 钩子：身份反转+金钱冲击\n2. 结婚3年老公失联，第4年他带着私生子出现在我父亲葬礼上 —— 钩子：时间跨度+葬礼冲突\n3. 我死后第7天，老公发了条朋友圈：终于自由了 —— 钩子：死后视角+反转\n4. 被开除当天，我收到了前老板死对头的offer —— 钩子：打脸+逆袭\n5. 闪婚对象竟是对头公司CEO，婚后才发现他早就知道我是谁 —— 钩子：身份+知情反转\n6. 1次雨夜偶遇，掀翻了两家人20年的旧账 —— 钩子：数字+时间+旧账\n7. 离婚当天前夫死了，留给我的遗产里有一段我没听过的录音 —— 钩子：死亡+录音悬念\n8. 替嫁3年没人发现我是假的，直到真的那个回来了 —— 钩子：替身+真假对峙\n9. 7年前我救的人，现在是我面试官，他假装不认识我 —— 钩子：恩情+假装\n10. 我爸欠债2亿跑路，债主找上门那天我才知道他是我亲哥 —— 钩子：欠债+血缘反转\n\n推荐前3：第1、第5、第10个',
     '起角色名': '【女主候选】\n1. 苏晚 - 表面温吞骨子里不认输\n2. 温念 - 嘴硬心软，记仇但重情\n3. 林栖 - 看着乖，主意正\n4. 姜糖 - 甜里带辣，不傻白甜\n5. 沈鹿 - 软但不弱，有底牌\n\n【男主候选】\n1. 陆砚 - 知道她是谁，但不说\n2. 顾寒川 - 冷面话少，做事狠\n3. 沈砚之 - 温和是壳，里头冷\n4. 傅凛 - 不近人情，但有底线\n5. 江衍 - 笑面虎，笑越暖手越黑',
     '起标题': '（演示模式 — 接入 API Key 后将获得真实标题生成）\n\n1. 雨夜撞上的人，3天后坐在了我的面试官席位上\n2. 他留下的怀表，让我妈摔碎了20年的沉默\n3. 1次雨夜偶遇，掀翻了两家人20年的旧账\n4. 面试官是我雨夜撞到的人，7天后他叫我别查下去\n5. 那块鹰纹怀表，是失踪10年的人留下的最后线索',
     '灵感': '（演示模式 — 接入 API Key 后将获得真实建议）\n\n1. 怀表上的字母是顾家暗号，林小雨在设计岗无意中破解了含义\n2. 林母的饭馆其实是为monitoring顾家而开的据点\n3. 顾寒川接近林小雨是奉命销毁证据，但他在执行中动了真感情',
@@ -1472,7 +1625,7 @@ function AIPanel({ aiReady, project, onOpenSettings }: { aiReady: boolean; proje
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'init', from: 'ai', text: aiReady
       ? '你好！我是你的 AI 写作助手。API 已接入，选择上方功能或直接输入需求，我来帮你完成创作任务。'
-      : '你好！我是你的 AI 写作助手。选择上方功能或直接输入需求，我来帮你完成创作任务。\n\n⚠️ 当前为演示模式，点击右上角"设置"接入 API Key 后将获得真实 AI 回复。' },
+      : '你好！我是你的 AI 写作助手。选择上方功能或直接输入需求，我来帮你完成创作任务。\n\n当前为演示模式，点击右上角"设置"接入 API Key 后将获得真实 AI 回复。' },
   ]);
   const [prompt, setPrompt] = useState('');
   const [activeFn, setActiveFn] = useState<string>('');
@@ -1528,13 +1681,15 @@ function AIPanel({ aiReady, project, onOpenSettings }: { aiReady: boolean; proje
         else if (fnLabel === '逻辑检查') systemPrompt = LOGIC_CHECK_PROMPT;
         else if (fnLabel === '番茄主编评价') systemPrompt = EDITOR_REVIEW_PROMPT;
 
+        const maxTokensOverride = fnLabel === '生成大纲' ? 8000 : undefined;
+
         const aiText = await callAI([
           { role: 'system', content: systemPrompt },
           { role: 'user', content: input }
-        ]);
+        ], undefined, maxTokensOverride);
         setMessages(prev => [...prev, { id: genId(), from: 'ai', text: aiText }]);
       } catch (err: any) {
-        setMessages(prev => [...prev, { id: genId(), from: 'ai', text: `⚠️ API 调用失败：${err.message || '未知错误'}\n\n可能原因：网络较慢、API Key 无效、或当前模型响应较慢。请检查设置后重试。` }]);
+        setMessages(prev => [...prev, { id: genId(), from: 'ai', text: `API 调用失败：${err.message || '未知错误'}\n\n可能原因：网络较慢、API Key 无效、或当前模型响应较慢。请检查设置后重试。` }]);
       }
     } else {
       setTimeout(() => {
@@ -1563,13 +1718,13 @@ function AIPanel({ aiReady, project, onOpenSettings }: { aiReady: boolean; proje
   return (
     <div className="panel ai-panel">
       <div className="panel-header-row">
-        <h2 className="panel-title">🤖 AI 写作助手</h2>
+        <h2 className="panel-title">AI 写作助手</h2>
         <div className="header-actions">
           <span className={`badge ${aiReady ? 'badge--success' : 'badge--model'}`}>
-            {aiReady ? '✓ 已接入 API' : '演示模式'}
+            {aiReady ? '已接入 API' : '演示模式'}
           </span>
           <button className="btn btn--ghost btn--sm" onClick={onOpenSettings}>
-            ⚙️ 设置
+            设置
           </button>
         </div>
       </div>
@@ -1583,7 +1738,7 @@ function AIPanel({ aiReady, project, onOpenSettings }: { aiReady: boolean; proje
               onClick={() => handleFnClick(fn)}
               style={activeFn === fn.label ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)' } : undefined}
             >
-              <span className="ai-fn-icon">{fn.icon}</span>
+              <span className="ai-fn-icon"><Icon name={fn.icon as IconName} /></span>
               <strong>{fn.label}</strong>
               <small className="muted">{fn.desc}</small>
             </button>
@@ -1609,7 +1764,7 @@ function AIPanel({ aiReady, project, onOpenSettings }: { aiReady: boolean; proje
             <div className="chat-actions">
               <button className="btn btn--ghost btn--sm" onClick={handleClear}>清空</button>
               <button className="btn btn--primary" onClick={handleSend} disabled={!prompt.trim() || loading}>
-                {loading ? '思考中...' : '发送 🚀'}
+                {loading ? '思考中...' : '发送'}
               </button>
             </div>
           </div>
@@ -1622,7 +1777,7 @@ function AIPanel({ aiReady, project, onOpenSettings }: { aiReady: boolean; proje
 function ChatBubble({ from, text }: { from: 'user' | 'ai'; text: string }) {
   return (
     <div className={`chat-bubble chat-bubble--${from}`}>
-      <span className="chat-avatar">{from === 'ai' ? '🤖' : '👤'}</span>
+      <span className="chat-avatar"><Icon name={from === 'ai' ? 'robot' : 'user'} /></span>
       <p className="chat-text" style={{ whiteSpace: 'pre-wrap' }}>{text}</p>
     </div>
   );
@@ -1648,10 +1803,10 @@ function StatsPanel({ project, totalWords }: { project: Project; totalWords: num
       </div>
 
       <div className="stat-grid">
-        <StatCard label="全书字数" value={totalWords.toLocaleString()} unit="字" target={project.targetWords} percent={projectPercent} icon="📖" />
-        <StatCard label="写作时长" value="47" unit="分钟" target={60} percent={78} icon="⏱️" />
-        <StatCard label="章节进度" value={`${writtenChapters}`} unit={`/ ${totalChapters} 章`} target={totalChapters} percent={totalChapters > 0 ? Math.round((writtenChapters / totalChapters) * 100) : 0} icon="📝" />
-        <StatCard label="连续天数" value="7" unit="天 🔥" target={30} percent={23} icon="🔥" />
+        <StatCard label="全书字数" value={totalWords.toLocaleString()} unit="字" target={project.targetWords} percent={projectPercent} icon="book" />
+        <StatCard label="写作时长" value="47" unit="分钟" target={60} percent={78} icon="clock" />
+        <StatCard label="章节进度" value={`${writtenChapters}`} unit={`/ ${totalChapters} 章`} target={totalChapters} percent={totalChapters > 0 ? Math.round((writtenChapters / totalChapters) * 100) : 0} icon="doc" />
+        <StatCard label="连续天数" value="7" unit="天" target={30} percent={23} icon="flame" />
       </div>
 
       <div className="progress-section">
@@ -1660,7 +1815,7 @@ function StatsPanel({ project, totalWords }: { project: Project; totalWords: num
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: '100%' }} />
           </div>
-          <span className="progress-text">2,580 / 2,000 字 · 已超额完成！🎉</span>
+          <span className="progress-text">2,580 / 2,000 字 · 已超额完成！</span>
         </div>
       </div>
 
@@ -1709,7 +1864,7 @@ function StatsPanel({ project, totalWords }: { project: Project; totalWords: num
 }
 
 function StatCard({ label, value, unit, target: _target, percent, icon }: {
-  label: string; value: string; unit: string; target: number | string; percent: number; icon: string;
+  label: string; value: string; unit: string; target: number | string; percent: number; icon: IconName;
 }) {
   const clampedPercent = Math.min(percent, 100);
   const isOver = percent > 100;
@@ -1718,7 +1873,7 @@ function StatCard({ label, value, unit, target: _target, percent, icon }: {
   return (
     <div className="stat-card">
       <div className="stat-top">
-        <span className="stat-icon">{icon}</span>
+        <span className="stat-icon"><Icon name={icon} /></span>
         <span className="stat-label">{label}</span>
       </div>
       <strong className="stat-value">{value} <small className="stat-unit">{unit}</small></strong>

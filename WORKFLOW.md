@@ -80,7 +80,11 @@ npm run package        # = vsce package
 ## 6. 发布 / 上线
 
 1. 在 `package.json` 更新 `version`（遵循 semver）。
-2. 本地自测：`npm run package` 后 `code --install-extension tomato-writer-<v>.vsix`。
+2. 本地自测：`npm run package` 后安装 vsix：
+   - 若 `code` 已在 PATH：`code --install-extension tomato-writer-<v>.vsix`
+   - **本机 `code` 未加入 PATH**，用绝对路径：
+     `/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code --install-extension tomato-writer-<v>.vsix`
+   - 安装后重启 / Reload 窗口，左侧活动栏出现「番茄写作助手」图标即成功。
 3. 提交并打 tag：`git tag v<version>`。
 4. 推送 + 发布：
    - 连接 GitHub（Settings → 连接器）后 `git push --tags`；
@@ -88,16 +92,18 @@ npm run package        # = vsce package
 
 ---
 
-## 7. 当前进度（截至 2026-07-18）
+## 7. 当前进度（截至 2026-07-20）
 
-- **v0.4.0 功能（AI 集成）已基本完成、未提交**：
+- **v0.4.0（AI 集成）已完成、已提交（commit `5078547`）、已打 tag `v0.4.0`**，
+  并已通过 `code` 绝对路径安装到本机 VS Code 自测：
   - `src/extension.ts`：新增 `aiRequest` 代理（150s 超时，绕过 CSP）。
   - `webview/src/aiService.ts`：AI 配置类型 / localStorage 持久化 / `callAI()`。
   - `webview/src/SettingsPanel.tsx`：设置面板 + OpenAI/DeepSeek/通义/月之暗面预设。
   - `webview/src/App.tsx`、`index.css`：AI 功能 UI。
 - **已修复**：打包流程（prepublish 串联 webview 构建）、`.vscodeignore` 瘦身、
   移除未引用的 `openai` 依赖。
-- **待办**：提交 WIP → 打 tag v0.4.0 → 连接 GitHub 推送 / 发布（见任务清单 #5）。
+- **待办（需用户操作）**：连接 GitHub 连接器后 `git push --tags` 推送，或 `vsce publish`
+  发布到 Marketplace。当前 GitHub 连接器 `disconnected`，尚未对外发布。
 
 ---
 

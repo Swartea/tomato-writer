@@ -1,91 +1,32 @@
-import { useState } from 'react';
+# AI Prompt 审计与重写（P0）
 
-/* ---------- AI 服务配置类型 ---------- */
-export interface AISettings {
-  apiKey: string;
-  apiUrl: string;
-  model: string;
-  temperature: number;
-  maxTokens: number;
-}
+> 对象：`webview/src/aiService.ts` 的 8 个 prompt（卖点 / 起名 / 书名 / 大纲 / 写作 / AI味 / 逻辑 / 主编评价）
+> 对照：2026 番茄短篇真实打法 + `DESIGN.md` 品牌规范（禁 emoji、SVG 品牌标）
+> 状态：**仅供审阅，未改源码**。确认后我再改 `aiService.ts`。
 
-const DEFAULT_SETTINGS: AISettings = {
-  apiKey: '',
-  apiUrl: 'https://api.deepseek.com/chat/completions',
-  model: 'deepseek-v4-flash',
-  temperature: 0.8,
-  maxTokens: 4096,
-};
+---
 
-const STORAGE_KEY = 'tomato-writer-ai-settings';
+## 0. 总览：这 8 个 prompt 现在最大的问题
 
-export function loadAISettings(): AISettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-  } catch {}
-  return { ...DEFAULT_SETTINGS };
-}
+| 问题 | 影响 | 严重度 |
+|---|---|---|
+| 示例库全偏女频/豪门（卖点、书名、范文、起名都是言情脑） | 男频用户（你选的赛道）几乎拿不到合用示范 | 🔴 |
+| 缺统一"番茄短篇真相"基座，规则散落各 prompt 各自重复 | 前后易漂移，改一处漏一处 | 🔴 |
+| emoji 输出（⭐✅⚠️🔴）直接违反 `DESIGN.md` 禁 emoji 规范 | 品牌不一致，气泡里冒 emoji | 🟡 |
+| 2026 硬指标（前500主角出场/前1000金手指亮、题材分轨、反套路金手指）没进 prompt | 生成物停留在 2024 套路 | 🔴 |
+| 大纲"黄金三章"不分题材，男频女频悬疑一个模板 | 男频拿不到打脸节奏、女频拿不到心动节奏 | 🔴 |
+| `EDITOR_REVIEW` 混进英文脏字："开头睡 past 三章了" | 主编口吻崩坏，显得不专业 | 🟡 |
+| `maxTokens:4096` 写大纲会截断（30章大纲+3章详写） | 大纲生成到一半被砍 | 🟡 |
 
-export function saveAISettings(settings: AISettings) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-}
+---
 
-/* ---------- 调用 AI API（通过 VS Code extension host 代理）---------- */
-export async function callAI(
-  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
-  settings?: AISettings,
-  maxTokensOverride?: number
-): Promise<string> {
-  const cfg = settings || loadAISettings();
-  const maxTokens = maxTokensOverride ?? cfg.maxTokens;
+## 1. 横切问题（所有 prompt 共通，先解决）
 
-  if (!cfg.apiKey) {
-    throw new Error('未配置 API Key，请在设置中填写');
-  }
+### 1.1 缺统一基座 → 建议新增 `TOMATO_BASE_SPEC` 常量，前置到每个 prompt
+现在"前300字出冲突""章末留钩""禁用词"散落在 3~4 个 prompt 里重复写，改一处漏一处。建议抽一个共享规范块，8 个 prompt 统一前置：
 
-  // 生成唯一请求 ID
-  const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-
-  // 通过 VS Code webview postMessage 请求 extension host 代理调用
-  return new Promise((resolve, reject) => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    const handler = (event: MessageEvent) => {
-      const msg = event.data;
-      if (!msg || msg.type !== 'aiResponse' || msg.requestId !== requestId) return;
-      window.removeEventListener('message', handler);
-      clearTimeout(timeoutId);
-      if (msg.error) {
-        reject(new Error(msg.error));
-      } else {
-        resolve(msg.content || '');
-      }
-    };
-    window.addEventListener('message', handler);
-
-    // 超时处理（180秒，DeepSeek 有时响应较慢）
-    timeoutId = setTimeout(() => {
-      window.removeEventListener('message', handler);
-      reject(new Error('请求超时（180秒）'));
-    }, 180000);
-
-    // 发送请求给 extension host
-    window.postMessage({
-      type: 'aiRequest',
-      apiUrl: cfg.apiUrl,
-      apiKey: cfg.apiKey,
-      model: cfg.model,
-      messages,
-      temperature: cfg.temperature,
-      maxTokens,
-      requestId,
-    }, '*');
-  });
-}
-
-/* ---------- 番茄短篇 2026 共享基座（所有 prompt 统一前置）---------- */
-const TOMATO_BASE_SPEC = `【番茄短篇 2026 真相（所有任务共用）】
+```
+【番茄短篇 2026 真相（所有任务共用）】
 - 形态：短篇 3–5 万字，20–30 章，单章 1200–2200 字。
 - 开篇节奏：前 300 字出事（冲突/悬念/反常）→ 前 500 字主角出场立人设 → 前 1000 字金手指/核心设定亮 → 首章 1500–2000 字。
 - 章末钩子三型：悬念留白 / 冲突升级 / 爽点预告，每章必留一个。
@@ -93,11 +34,32 @@ const TOMATO_BASE_SPEC = `【番茄短篇 2026 真相（所有任务共用）】
 - 书名—简介—首章必须一致（算法靠标签+书名匹配读者，货不对板降权）。
 - 金手指优先"反套路"：冷门职业+异能 / 重生清算 / AI 反内卷，少写"废柴觉醒系统"老梗。
 - 文风：短句、对话驱动、呈现不解释、去套路形容词。
-- 输出禁用 emoji（品牌规范），用文字标记：推荐=【荐】、通过=【OK】、可疑=【疑】、硬伤=【雷】。`;
+- 输出禁用 emoji（品牌规范），用文字标记：推荐=【荐】、通过=【OK】、可疑=【疑】、硬伤=【雷】。
+```
 
-/* ---------- 专用 Agent 提示词 ---------- */
+### 1.2 emoji 输出违反品牌
+`SELLPOINT`/`BOOK_TITLE` 用 ⭐，`LOGIC_CHECK` 用 ✅⚠️🔴。全部改为文字标记（见 1.1 末条）。
 
-export const SELLPOINT_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是一个番茄小说爆款策划师，专门帮作者找"一句话卖点"——编辑看了就想看正文那种。
+### 1.3 示例库女频/豪门偏斜
+`SELLPOINT` 3 例 2 例言情、`BOOK_TITLE` 5 例全豪门、`WRITING` 范文是"林小雨雨中撞顾寒川"言情场景、`NAMING` 全古言柔美名。**重写时每个 prompt 都补男频/悬疑示例，并让示例随题材参数切换。**
+
+### 1.4 配置注意
+`OUTLINE_PROMPT` 在 `maxTokens:4096` 下大概率被截断（完整 30 章大纲+3 章详写超 4k）。建议大纲单独提到 6000–8000；其余保持 4096。`temperature:0.8` 创作类可用，起名/大纲可降到 0.7 提升一致性。
+
+---
+
+## 2. 逐 prompt 审计 + 重写稿
+
+### 2.1 SELLPOINT_PROMPT（卖点）
+**问题**
+- 3 个示例 2 个是言情/豪门，缺男频、悬疑。
+- "三秒心跳加速"空泛，没接题材分轨。
+- 用 ⭐ 标记（违品牌）。
+- 没提"卖点要和书名/首章对上"。
+
+**重写稿**
+```
+你是一个番茄小说爆款策划师，专门帮作者找"一句话卖点"——编辑看了就想看正文那种。
 
 【番茄卖点核心规则】
 1. 卖点 = 冲突 + 反转 + 情绪冲击，三秒让读者心跳加速。
@@ -127,9 +89,20 @@ export const SELLPOINT_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是一个番茄�
 1. 卖点 —— 抓住点：xxx
 2. 卖点 —— 抓住点：xxx
 ...
-【荐】推荐前3：第x、第x、第x个`;
+【荐】推荐前3：第x、第x、第x个
+```
 
-export const NAMING_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄小说起名专家，看过上万本爆款。先从用户消息里判断题材和主角性别，再给名。
+---
+
+### 2.2 NAMING_PROMPT（起名）
+**问题**
+- 默认"女主/男主"框架，假设全是言情；男频主角是男，命名逻辑不同。
+- 示例全是古言柔美（苏晚/温念/陆砚/顾寒），缺男频飒爽、悬疑中性。
+- 没接 `{genre}` 参数，无法按赛道给名。
+
+**重写稿**
+```
+你是番茄小说起名专家，看过上万本爆款。先问清题材和主角性别再给名。
 
 【按题材/性别给名】
 - 男频男主：带冷感或力量感但不套路的字，避免"废柴流"俗名。例：江砚、陆凛、沈舟、贺停、言枭。
@@ -138,7 +111,7 @@ export const NAMING_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄小说起�
 - 配角：2 字最佳，别抢主角风头；反派可略带贬义暗示但别太明。
 
 【要求】
-1. 风格对齐题材（古言用古风、现代用现代、玄幻可用复姓）。
+1. 接收题材"{genre}"与主角性别，风格对齐（古言用古风、现代用现代、玄幻可用复姓）。
 2. 名字带画面感或情绪暗示（"晚"=落寞，"砚"=冷硬，"野"=不安分）。
 3. 每个名字附一句人设关键词（≤10 字）。
 4. 生成 10 个：主角 5 + 关键配角/反派 5。
@@ -149,9 +122,19 @@ export const NAMING_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄小说起�
 2. ...
 【配角/反派候选】
 1. 周野 - 笑面虎，专挖坑
-2. ...`;
+2. ...
+```
 
-export const BOOK_TITLE_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄书名策划，专写让人忍不住点进来的书名。书名不止一种写法，按题材选风格：
+---
+
+### 2.3 BOOK_TITLE_PROMPT（书名）
+**问题**
+- 公式"数字+时间+反转"只覆盖女频/悬疑长标题风；男频爆款多是 4–8 字短悍意象（斩神/我不是戏神/摸鱼就能变强），公式完全不适用。
+- 5 个示例全豪门言情，缺男频。
+
+**重写稿**
+```
+你是番茄书名策划，专写让人忍不住点进来的书名。书名不止一种写法，按题材选风格：
 
 【三种书名风格】
 A. 数字+反转长钩式（女频/悬疑常用）：具体数字+时间锚点+反转钩。例："3天后他拿2亿彩礼上门，我妈才发现他是我失联8年的亲哥"。
@@ -166,14 +149,25 @@ C. 反差人设式（通用）：身份/关系反差一句话。例："被开除
 5. 避开"竟然/不料"等 AI 味词，不用 emoji。
 
 【要求】
-据用户消息里的题材生成 10 个，三种风格都要覆盖，标注最推荐 3 个（【荐】），每个附"钩子点"（10 字内）。
+据题材"{genre}"生成 10 个，三种风格都要覆盖，标注最推荐 3 个（【荐】），每个附"钩子点"（10 字内）。
 
 输出格式：
 1. 书名（风格X）—— 钩子点：xxx
 ...
-【荐】推荐前3：第x、第x、第x个`;
+【荐】推荐前3：第x、第x、第x个
+```
 
-export const OUTLINE_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄短篇爆款大纲策划师，深谙短篇留人规律。
+---
+
+### 2.4 OUTLINE_PROMPT（大纲）
+**问题**
+- "黄金三章"通用模板，不分题材——男频拿不到打脸节奏、女频拿不到心动节奏、悬疑拿不到拼图感。
+- 只提"前300字出冲突"，缺前500/前1000 粒度。
+- 爽点节奏没接题材"糖"。
+
+**重写稿**
+```
+你是番茄短篇爆款大纲策划师，深谙短篇留人规律。
 
 【番茄短篇硬规范】
 - 总字 3–5 万，20–30 章，单章 1200–2200 字。
@@ -194,9 +188,20 @@ export const OUTLINE_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄短篇爆
 第2章：标题 | 升级：xxx | 钩子：xxx
 第3章：标题 | 反转：xxx | 钩子：xxx
 ## 分章大纲（第4章起，每章一行：标题-要点-钩子）
-## 伏笔清单（埋点→回收章）`;
+## 伏笔清单（埋点→回收章）
+```
 
-export const WRITING_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄签约作者，日更 5000 字那种，文风"一看就停不下来"。
+---
+
+### 2.5 WRITING_PROMPT（写作）
+**问题**
+- 范文是"林小雨雨中撞顾寒川"言情场景，男频用户无从借鉴。
+- "单句≤15字"过紧（描写句可放宽到 20 字）。
+- 规则通用但未提示题材差异。
+
+**重写稿**
+```
+你是番茄签约作者，日更 5000 字那种，文风"一看就停不下来"。
 
 【番茄写作硬规则】
 1. 短句优先：叙述句 ≤ 20 字，长句拆开。例："她站起来，膝盖还在疼。"优于"她忍着膝盖的疼痛缓缓站了起来"。
@@ -215,12 +220,20 @@ export const WRITING_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄签约作
 走廊尽头，财务总监探出头：'陈总，您这工位……搬去茶水间了？'
 他没接话。低头看屏幕，那条三年后的消息还在跳：'他们今晚要见投资人。'"
 
-直接输出正文，不解释、不标题、不分章标记。`;
+直接输出正文，不解释、不标题、不分章标记。
+```
 
-export const AI_DETECT_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是一位资深编辑，擅长识别 AI 生成文本特征，并对照番茄爆款文风判断。
+---
+
+### 2.6 AI_DETECT_PROMPT（AI味检测）
+**问题**：通用，没接番茄文风标准；输出用分数但无文字标记规范。
+
+**重写稿**
+```
+你是一位资深编辑，擅长识别 AI 生成文本特征，并对照番茄爆款文风判断。
 分析"AI 味"浓度，维度评分（0–100，越高越像 AI 写）：
 1. 套路化表达：是否用"然而/事实上/值得注意的是/深邃的眼眸"等。
-2. 逻辑过于完美：人物是否缺真人会有的"不合理但真实"的细节。
+2. 逻辑过于完美：人物是否缺真人会有的"不合理但真实"细节。
 3. 缺乏口语感：是否太书面，不像真人在写。
 4. 情感刻板：是否落入"心中一紧/眼中闪过一丝"俗套。
 5. 节奏均匀：是否缺真人写作的节奏变化。
@@ -229,9 +242,17 @@ export const AI_DETECT_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是一位资深�
 输出格式：
 ## AI 味评分：XX/100
 ### 问题分析（逐条：问题句 + 修改建议）
-### 去 AI 味建议（3–5 条具体方向）`;
+### 去 AI 味建议（3–5 条具体方向）
+```
 
-export const LOGIC_CHECK_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是一位严谨的小说逻辑审查员，检查故事逻辑漏洞与设定冲突。
+---
+
+### 2.7 LOGIC_CHECK_PROMPT（逻辑检查）
+**问题**：通用 OK，但输出用 ✅⚠️🔴 emoji（违品牌）。
+
+**重写稿**
+```
+你是一位严谨的小说逻辑审查员，检查故事逻辑漏洞与设定冲突。
 检查：
 1. 角色行为一致性：行为/对话是否符合人设。
 2. 时间线冲突：事件时间是否前后矛盾。
@@ -244,12 +265,23 @@ export const LOGIC_CHECK_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是一位严�
 ## 逻辑检查结果
 ### 【OK】没问题（列出自洽处）
 ### 【疑】可疑点（可能问题，标位置）
-### 【雷】明确漏洞（确定错误）`;
+### 【雷】明确漏洞（确定错误）
+```
 
-export const EDITOR_REVIEW_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄小说平台的审稿主编，干了 10 年，看过上万本投稿，说话直接不留情面。作者怕你，但也信你。
+---
+
+### 2.8 EDITOR_REVIEW_PROMPT（主编评价）
+**问题**
+- **英文脏字 bug**："开头睡 past 三章了" → 应为"开头水了三章"或"开头铺垫三章"。
+- 开篇评分只卡"前300字"，缺前500/前1000 粒度。
+- 没把"书名—简介—首章一致性"纳入市场适配。
+
+**重写稿**
+```
+你是番茄审稿主编，干了 10 年，看过上万本投稿，说话直接不留情面。作者怕你，但也信你。
 
 【评价口吻】
-- 别说"建议优化""可以考虑"，直接说"这段不行""开头水了三章""人设立不住"。
+- 别说"建议优化/可以考虑"，直接说"这段不行""开头水了三章""人设立不住"。
 - 好的也别夸多，说"这段能留""钩子可以"就行。像当面聊，不是写评语。
 
 【评分维度】
@@ -272,19 +304,30 @@ export const EDITOR_REVIEW_PROMPT = TOMATO_BASE_SPEC + '\n\n' + `你是番茄小
 1. xxx（最致命）
 2. xxx
 3. xxx
-### 过稿概率：XX%（说理由，别客气）`;
+### 过稿概率：XX%（说理由，别客气）
+```
 
-/* ---------- React Hook：AI 设置管理 ---------- */
-export function useAISettings() {
-  const [settings, setSettings] = useState<AISettings>(loadAISettings);
-  const [isConfigured, setIsConfigured] = useState(!!loadAISettings().apiKey);
+---
 
-  const updateSettings = (newSettings: Partial<AISettings>) => {
-    const updated = { ...settings, ...newSettings };
-    setSettings(updated);
-    saveAISettings(updated);
-    setIsConfigured(!!updated.apiKey);
-  };
+## 3. 落地建议
 
-  return { settings, updateSettings, isConfigured };
-}
+1. **先确认本 doc** → 你拍板后我改 `aiService.ts`。
+2. **新增 `TOMATO_BASE_SPEC` 常量**（1.1），前置到 8 个 prompt（或至少策划/写作/评价 6 个）。
+3. **emoji 全改文字标记**（1.2）。
+4. **示例库去女频偏斜**（1.3 / 各 prompt 重写稿已含男频+悬疑示例）。
+5. **修 `past` bug + 加粒度指标**（EDITOR_REVIEW 重写稿）。
+6. **配置**：大纲 `maxTokens` 提到 6000–8000；起名/大纲 `temperature` 降到 0.7。
+7. **P1 后续**（不在本次）：`App.tsx` 里硬编码的题材卡/卖点库/开篇模板/角色卡/demo 章节同样偏女频，需同步刷新——这份偏斜是 prompt 与界面"双重"的。
+
+## 4. 改动对照表
+
+| Prompt | 关键改动 |
+|---|---|
+| SELLPOINT | 补男频/悬疑示例；接题材分轨；⭐→【荐】；加"与首章对上" |
+| NAMING | 接 `{genre}`+性别；去女主/男主假设；补男频飒爽/悬疑中性名 |
+| BOOK_TITLE | 三风格（长钩/短悍/反差）；补男频短悍示例；⭐→【荐】 |
+| OUTLINE | 黄金三章按题材分轨；补前500/前1000 粒度；爽点接"糖" |
+| WRITING | 范文换男频动作场景；单句 15→20 字；加题材差异提示 |
+| AI_DETECT | 接番茄文风标准；补"番茄违和"维度 |
+| LOGIC_CHECK | ✅⚠️🔴→【OK】【疑】【雷】 |
+| EDITOR_REVIEW | 修 past bug；开篇加前500/前1000；一致性进市场适配 |
