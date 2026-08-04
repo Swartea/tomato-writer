@@ -1,0 +1,68 @@
+sequenceDiagram
+    participant U as 用户
+    participant PF as PlanningFeature
+    participant H as useOptionCandidates
+    participant RPC as hostClient
+    participant VH as VscodeHost
+    participant W as WritingWorkflows
+    participant P as prompts.optionsPrompt
+    participant M as CompletionClient(LLM)
+    participant PA as parsing
+
+    Note over U,PF: 场景 A —— 本地预设（无需 API Key，R1~R9）
+    U->>PF: 点选「目标读者」胶囊（READER_POOL[genreTrack]）
+    PF->>PF: joinCn(selected) → '、' 拼接
+    PF->>PF: update(next => next.planning.targetReader = joined)
+    U->>PF: 单选核心冲突类型「人vs系统」
+    PF->>PF: update: coreConflictType = '人vs系统'
+    alt coreConflict 正文为空
+        PF->>PF: coreConflict = conflictSeedText('人vs系统')
+    else 已有正文
+        PF-->>U: 不覆盖，仅记录类型
+    end
+
+    Note over U,PA: 场景 B —— AI 候选（R10/R11）
+    U->>PF: 点「AI 生成书名候选」
+    PF->>H: ask('titles', { count: 6 })
+    H->>H: busyKind='titles'，按钮转「AI 生成中…」
+    H->>RPC: request('generateOptions', {kind:'titles', project, count:6})
+    RPC->>VH: {type:'request', command:'generateOptions'}
+    VH->>VH: isWebviewToHostMessage → validPayload 校验 kind 白名单
+    VH->>W: generateOptions('titles', project, {count:6}, signal)
+    W->>P: optionsPrompt('titles', project, 6, exclude)
+    P->>P: 注入 TRACK_RULES + genreTactic + 上游 planning 切片
+    P-->>W: system prompt（含严格 JSON 输出格式）
+    W->>M: complete(system, JSON.stringify(planning切片), signal)
+    M-->>W: 原始文本
+    W->>PA: parseModelJson(raw)
+    PA-->>W: unknown
+    W->>PA: parseOptionCandidates('titles', raw, 6)
+    PA->>PA: 去空/trim/按 label 去重/截断到 count；空则 throw
+    PA-->>W: OptionCandidate[]
+    W-->>VH: { kind:'titles', options }
+    VH-->>RPC: {ok:true, data}
+    RPC-->>H: GenerateOptionsResult
+    H->>H: candidates.set('titles', options)，busyKind=null
+    H-->>PF: 状态更新触发重渲染
+    PF->>U: 渲染 CandidateCards mode="multi"
+    U->>PF: 点选 2 个候选
+    PF->>PF: update: titleCandidates = 去重追加
+    Note right of PF: 未点选的候选不落盘，切页即弃
+
+    Note over U,PF: 场景 C —— 单选覆盖（R12/R14）
+    U->>PF: 点某条卖点候选
+    alt sellingPoint 已有内容
+        PF->>U: window.confirm('将覆盖现有卖点，确认？')
+        U-->>PF: 确认
+    end
+    PF->>PF: update: sellingPoint = option.label
+    Note right of PF: beats 同理，采纳 = 整套覆盖 emotionalBeats（Q5）
+
+    Note over H,PF: 异常与降级
+    alt 失败
+        H->>H: error = err.message
+        PF->>U: 复用 note 区展示错误 + 可重试
+    end
+    alt !hasKey
+        PF->>U: 按钮 disabled + 「需在 AI 设置中配置 API Key」（R13）
+    end

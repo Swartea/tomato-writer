@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: '../dist/webview',
+    emptyOutDir: true,
     assetsDir: 'assets',
     // 固定文件名，避免 hash 导致 VS Code Webview 找不到资源
     rollupOptions: {

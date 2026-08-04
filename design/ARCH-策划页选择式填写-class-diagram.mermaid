@@ -1,0 +1,101 @@
+classDiagram
+    class Planning {
+        +number schemaVersion
+        +GenreTrack genreTrack
+        +string genre
+        +string targetReader
+        +string[] tags
+        +string coreConflict
+        +string coreConflictType_optional
+        +string emotionalGoal
+        +EmotionalBeat[] emotionalBeats
+        +string[] titleCandidates
+        +string sellingPoint
+    }
+    class OptionCandidate {
+        +string label
+        +unknown value_optional
+        +string note_optional
+    }
+    class GenerateOptionsResult {
+        +GenerateOptionsKind kind
+        +OptionCandidate[] options
+    }
+    class Presets {
+        <<module>> presets.ts
+        +READER_POOL
+        +TAG_POOL
+        +EMOTION_POOL
+        +CONFLICT_TYPES
+        +STYLE_ENUMS
+        +conflictSeedText(type) string
+        +emotionSeedText(picked) string
+    }
+    class Prompts {
+        <<module>> prompts.ts
+        +PROMPT_VERSION
+        +optionsPrompt(kind, project, count, exclude) string
+    }
+    class Parsing {
+        <<module>> parsing.ts
+        +parseModelJson(raw) T
+        +parseOptionCandidates(kind, raw, count) OptionCandidate[]
+    }
+    class WritingWorkflows {
+        -CompletionClient completion
+        +generateOptions(kind, project, opts, signal) GenerateOptionsResult
+        +strengthenPlanning(project, signal) unknown
+        +deriveStyle(project, signal) StyleProfile
+    }
+    class VscodeHost {
+        +handle(command, payload, signal) unknown
+    }
+    class PlanningFeature {
+        <<react>>
+        +project ProjectData
+        +update UpdateProject
+        +hasKey boolean
+    }
+    class useOptionCandidates {
+        <<hook>>
+        +candidates Map
+        +busyKind GenerateOptionsKind
+        +error string
+        +ask(kind, opts) void
+        +clear(kind) void
+    }
+    class ChipMultiSelect {
+        <<react>>
+        +options string[]
+        +selected string[]
+        +max number
+        +allowCustom boolean
+        +onChange(next) void
+    }
+    class EnumSelect {
+        <<react>>
+        +options string[]
+        +value string
+        +onChange(next) void
+    }
+    class CandidateCards {
+        <<react>>
+        +options OptionCandidate[]
+        +mode multi_or_single
+        +selected string[]
+        +onToggle(option) void
+        +onPick(option) void
+        +onMore() void
+    }
+    WritingWorkflows --> Prompts : 构造 system prompt
+    WritingWorkflows --> Parsing : 校验模型输出
+    WritingWorkflows --> GenerateOptionsResult : 返回
+    Prompts --> Presets : 注入词表约束
+    VscodeHost --> WritingWorkflows : case generateOptions
+    PlanningFeature --> useOptionCandidates : 候选态
+    useOptionCandidates --> VscodeHost : hostClient.request
+    PlanningFeature --> ChipMultiSelect : R1 R2 R5 R9
+    PlanningFeature --> EnumSelect : R3 R6 R7 R8
+    PlanningFeature --> CandidateCards : R11 R12 R14
+    PlanningFeature --> Presets : 本地预设池
+    PlanningFeature --> Planning : update() 写回

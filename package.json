@@ -8,18 +8,23 @@
     "url": "https://github.com/swartea/tomato-writer"
   },
   "version": "0.4.1",
+  "workspaces": [
+    "packages/*",
+    "webview"
+  ],
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:tomato-writer.open",
-    "onCommand:tomato-writer.newProject",
-    "onCommand:tomato-writer.openSettings"
+    "activationEvents": [
+        "onCommand:tomato-writer.open",
+        "onCommand:tomato-writer.newProject",
+        "onCommand:tomato-writer.openProject",
+        "onCommand:tomato-writer.openSettings"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -35,6 +40,11 @@
         {
           "id": "tomato-writer-projects",
           "name": "我的项目",
+          "icon": "media/tomato-icon.svg"
+        },
+        {
+          "id": "tomato-writer-files",
+          "name": "项目文件",
           "icon": "media/tomato-icon.svg"
         },
         {
@@ -54,6 +64,10 @@
         "title": "新建写作项目"
       },
       {
+        "command": "tomato-writer.openProject",
+        "title": "打开本地写作项目"
+      },
+      {
         "command": "tomato-writer.openSettings",
         "title": "写作设置"
       },
@@ -65,6 +79,11 @@
       {
         "command": "tomato-writer.switchProject",
         "title": "切换项目"
+      },
+      {
+        "command": "tomato-writer.refreshFiles",
+        "title": "刷新项目文件",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -77,6 +96,11 @@
         {
           "command": "tomato-writer.open",
           "when": "view == tomato-writer-projects",
+          "group": "navigation"
+        },
+        {
+          "command": "tomato-writer.refreshFiles",
+          "when": "view == tomato-writer-files",
           "group": "navigation"
         }
       ],
@@ -125,19 +149,28 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run webview:build && npm run compile",
-    "compile": "tsc -p ./tsconfig.json",
+    "vscode:prepublish": "npm run build",
+    "build:packages": "npm run build -w @tomato-writer/core && npm run build -w @tomato-writer/contracts",
+    "compile": "npm run typecheck && npm run extension:build",
+    "typecheck": "npm run typecheck -w @tomato-writer/core && npm run typecheck -w @tomato-writer/contracts && npm run typecheck -w tomato-writer-webview && tsc -p ./tsconfig.json --noEmit",
+    "extension:build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node18 --external:vscode --outfile=dist/extension.js --sourcemap",
     "watch": "tsc -watch -p ./tsconfig.json",
-    "build": "npm run webview:build && npm run compile",
+    "build": "npm run build:packages && npm run webview:build && npm run compile",
+    "test": "vitest run",
     "package": "vsce package",
-    "webview:dev": "cd webview && npm run dev",
-    "webview:build": "cd webview && npm run build"
+    "webview:dev": "npm run dev -w tomato-writer-webview",
+    "webview:build": "npm run build -w tomato-writer-webview"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "@types/vscode": "^1.80.0",
     "@vscode/vsce": "^2.0.0",
-    "typescript": "^5.9.3"
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@tomato-writer/contracts": "*",
+    "@tomato-writer/core": "*"
+  }
 }

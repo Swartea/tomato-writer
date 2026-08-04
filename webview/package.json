@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tomato-writer/contracts": "*",
+    "@tomato-writer/core": "*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^4.4.0"
