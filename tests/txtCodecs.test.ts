@@ -80,6 +80,8 @@ describe('易读 TXT 编解码', () => {
     const legacy = encodePlanningTxt({ ...planning, coreConflictType: '' });
     expect(legacy).not.toContain('【核心冲突类型】');
     expect(decodePlanningTxt(legacy).coreConflictType).toBeUndefined();
+    // 旧文件读出再写回必须字节不变：新增可选段不得污染既有项目文件。
+    expect(encodePlanningTxt(decodePlanningTxt(legacy))).toBe(legacy);
   });
 
   it('大纲、人物、世界观和伏笔可无损往返', () => {
