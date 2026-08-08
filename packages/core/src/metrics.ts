@@ -14,11 +14,31 @@ export function countCharacters(text: string): number {
   return [...text.replace(/\s/g, '')].length;
 }
 
+/**
+ * 对话片段匹配：每种引号**成对**匹配，互不串味。
+ *
+ * - `“…”` 中文弯引号、`「…」` 直角引号、`『…』` 双层直角引号、`"…"` 英文直引号；
+ * - 用「分支交替」而不是字符类 `[“"]…[”"]`，避免 `“…"` 这类左右不同源的非法配对；
+ * - 中文网文（尤其番茄男频）大量使用 `「」`，缺了它会让对话占比恒为 0%，
+ *   进而误导闸门与修订指令，属于必须覆盖的口径。
+ *
+ * 注：嵌套如 `「他说『好』」` 由最外层分支整体吃掉，不会重复计数。
+ */
+const DIALOGUE_PATTERN = /“[^”]*”|「[^」]*」|『[^』]*』|"[^"]*"/g;
+
+/**
+ * 对话占比（百分比整数）。
+ *
+ * 分子与分母都走 {@link countCharacters}（去空白字符数），与全项目字数口径一致；
+ * 若分母用 text.length（含空白）而分子去空白，同一段正文会有 2~3pp 的系统性偏差，
+ * 在 `35–50%` 这类窄目标窗口里足以造成误判。
+ */
 export function dialogueRatio(text: string): number {
-  if (!text.length) return 0;
-  const dialogueCharacters = [...text.matchAll(/[“"][^”"]+[”"]/g)]
-    .reduce((total, match) => total + match[0].length, 0);
-  return Math.round(dialogueCharacters / text.length * 100);
+  const total = countCharacters(text);
+  if (!total) return 0;
+  const dialogueCharacters = [...text.matchAll(DIALOGUE_PATTERN)]
+    .reduce((sum, match) => sum + countCharacters(match[0]), 0);
+  return Math.round(dialogueCharacters / total * 100);
 }
 
 export function parseDialogueRange(text: string): NumberRange {

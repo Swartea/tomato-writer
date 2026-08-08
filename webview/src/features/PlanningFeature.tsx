@@ -152,6 +152,13 @@ export function PlanningFeature({ project, update, hasKey }: {
     try {
       const data = await hostClient.request('strengthenPlanning', { project });
       if (!isRecord(data)) throw new Error('策划字段不完整');
+      // 模型漏返某字段时一律「保留原值」，与其余 7 个字段策略一致。
+      // 曾经这两项的兜底写成 `[]`，模型一漏返就把用户点选的书名候选/情绪节拍静默清空。
+      // 空数组同样按「没给出可用内容」处理：AI 的职责是补强，任何情况下都不该清空用户已选项。
+      const nextTitles = stringArray(data.titleCandidates) && data.titleCandidates.length
+        ? data.titleCandidates : null;
+      const nextBeats = Array.isArray(data.emotionalBeats) && data.emotionalBeats.length
+        ? (data.emotionalBeats as EmotionalBeat[]) : null;
       update(next => Object.assign(next.planning, {
         genre: typeof data.genre === 'string' ? data.genre : next.planning.genre,
         targetReader: typeof data.targetReader === 'string' ? data.targetReader : next.planning.targetReader,
@@ -160,10 +167,16 @@ export function PlanningFeature({ project, update, hasKey }: {
         synopsis: typeof data.synopsis === 'string' ? data.synopsis : next.planning.synopsis,
         coreConflict: typeof data.coreConflict === 'string' ? data.coreConflict : next.planning.coreConflict,
         emotionalGoal: typeof data.emotionalGoal === 'string' ? data.emotionalGoal : next.planning.emotionalGoal,
-        titleCandidates: stringArray(data.titleCandidates) ? data.titleCandidates : [],
-        emotionalBeats: Array.isArray(data.emotionalBeats) ? data.emotionalBeats : [],
+        titleCandidates: nextTitles ?? next.planning.titleCandidates,
+        emotionalBeats: nextBeats ?? next.planning.emotionalBeats,
       }));
-      setNote(`策划已补强，并保存 ${stringArray(data.titleCandidates) ? data.titleCandidates.length : 0} 个标题候选`);
+      // 提示语必须反映「实际留下了什么」，不能把漏返说成「保存 0 个标题候选」。
+      const titleCount = (nextTitles ?? planning.titleCandidates).length;
+      const beatCount = (nextBeats ?? planning.emotionalBeats).length;
+      setNote(
+        `策划已补强：书名候选 ${titleCount} 条（${nextTitles ? 'AI 更新' : '模型未返回，已保留原有'}）、`
+        + `情绪节拍 ${beatCount} 条（${nextBeats ? 'AI 更新' : '模型未返回，已保留原有'}）`,
+      );
     } catch (failure) {
       setNote(failure instanceof Error ? failure.message : '生成失败，请重试');
     } finally {
@@ -217,6 +230,7 @@ export function PlanningFeature({ project, update, hasKey }: {
       {tactic && <>
         <p className="tactic-brief">
           <strong>写法核心：</strong>{tactic.core}<br />
+          <strong>档位：</strong>{tactic.stance}（{tactic.stance === '放开' ? '设定可夸张、开局即炸' : '贴近现实体感、不写悬浮爽点'}）<br />
           <strong>书名公式：</strong>{tactic.title}
         </p>
         <div className="field-actions">
@@ -229,7 +243,7 @@ export function PlanningFeature({ project, update, hasKey }: {
           <p><strong>首句结构（动作 / 冲突 / 反常）：</strong></p>
           <ul>{tactic.openings.map((opening, index) => <li key={index}>{opening}</li>)}</ul>
           <p><strong>书名公式：</strong>{tactic.title}</p>
-          <p><strong>推荐字数：</strong>{tactic.words} ｜ <strong>对话比：</strong>{tactic.dialogue} ｜ <strong>风格轴：</strong>{tactic.styleAxis}</p>
+          <p><strong>推荐字数：</strong>{tactic.words} ｜ <strong>对话比：</strong>{tactic.dialogue} ｜ <strong>风格轴：</strong>{tactic.styleAxis} ｜ <strong>档位：</strong>{tactic.stance}</p>
           <p><strong>常见 3 坑：</strong></p>
           <ul>{tactic.pitfalls.map((pitfall, index) => <li key={index}>{pitfall}</li>)}</ul>
         </Section>}

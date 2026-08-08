@@ -1,22 +1,55 @@
-import { Chapter, GenerateOptionsKind, ProjectData } from './types';
-import { CONFLICT_TYPES, EMOTION_POOL, READER_POOL, TAG_POOL } from './presets';
+import { Chapter, Foreshadowing, GenerateOptionsKind, GenreTrack, ProjectData } from './types';
+import { CONFLICT_TYPES, EMOTION_POOL, poolOf, READER_POOL, STYLE_ENUMS, TAG_POOL } from './presets';
 
-export const PROMPT_VERSION = '2026.07-v4';
+export const PROMPT_VERSION = '2026.08-v5';
 
-const TRACK_RULES = {
-  male: '男频脑洞：设定可夸张、反套路、开局即炸，爽点来自能力/信息差/局势逆转/降维碾压；允许系统、重生、身份反差开局，但避免无机制支撑的纯碾压（需信息差或规则支撑）。',
+/**
+ * 赛道通用约束 —— **只放与「放开/收敛」档位无关的内容**（爽点来源、叙事重心、红线）。
+ *
+ * 历史缺陷：这里曾写死「男频脑洞：设定可夸张、反套路、开局即炸」，而收敛档题材
+ * （都市日常/现实题材/乡村生活）又在题材策略里要求「避免开局无敌、龙傲天、标题党」，
+ * 于是同一条 system prompt 里同时出现放开与收敛两条相反指令。
+ * 修法是把档位判断下沉到题材层（见 {@link GenreTactic.stance}），此处保持中性。
+ */
+const TRACK_RULES: Record<GenreTrack, string> = {
+  male: '男频：爽点来自能力/信息差/局势逆转/降维碾压，须落在具体事件而非旁白吹捧；碾压必须有机制支撑（信息差或规则），不写无支撑的纯碾压。',
   female: '女频：关系变化与人物选择推动情节，情绪落到行动和对话，避免标签化宠溺。',
   mystery: '悬疑：线索公平可见，推理有因果，反转改变理解而不是临时追加设定。',
 };
 
+/** 题材档位：决定「设定放得多开」，与赛道无关，由具体二级题材给定。 */
+export type GenreStance = '放开' | '收敛';
+
+/** 档位对应的写法指令。同一时刻只会注入其中一条，不会自相矛盾。 */
+const STANCE_RULES: Record<GenreStance, string> = {
+  放开: '【档位·放开】设定可夸张、反套路、开局即炸；允许系统／重生／身份反差开局，章末可炸场。夸张须有机制支撑，不得无逻辑硬爽。',
+  收敛: '【档位·收敛】设定贴近现实体感，张力来自真实困境与人物选择；避免开局无敌、龙傲天、标题党式夸张承诺，不写悬浮爽点。',
+};
+
+/**
+ * 分轨默认档位 —— **仅在题材未命中 {@link GENRE_TACTICS} 时兜底**，
+ * 保证未知/自定义题材不会因为本次改造丢失全部档位指引。
+ *
+ * - male：沿用改造前 TRACK_RULES.male 的放开倾向，行为不回退；
+ * - female：女频同样以类型化套路开局为主（重生/先婚后爱/追妻火葬场），取放开；
+ * - mystery：悬疑依赖「线索公平、推理有因果」，与「设定可夸张」天然冲突，取收敛。
+ */
+const TRACK_DEFAULT_STANCE: Record<GenreTrack, GenreStance> = {
+  male: '放开',
+  female: '放开',
+  mystery: '收敛',
+};
+
 /**
  * 男频题材策略：每个二级题材对应一段「写法策略」。
- * 脑洞向写放开版（设定夸张、反套路、章末炸场），写实向写收敛版。
+ * 放开/收敛由各条目的 `stance` 字段声明，不再由赛道规则预设。
  * 女频/悬疑后续按同结构扩展 key 即可。
  */
 export interface GenreTactic {
-  /** 写法核心：一句话点明这本书的爽点长啥样 */
+  /** 写法核心：一句话点明这本书的爽点长啥样（不含档位倾向，档位走 stance） */
   core: string;
+  /** 档位：放开（脑洞向）／收敛（写实向） */
+  stance: GenreStance;
   /** 首句结构示例（动作/冲突/反常 各一） */
   openings: [string, string, string];
   /** 书名公式说明 + 示例 */
@@ -33,7 +66,8 @@ export interface GenreTactic {
 export const GENRE_TACTICS: Record<string, GenreTactic> = {
   // ===== 男频 · 脑洞向（放开档） =====
   都市脑洞: {
-    core: '日常场景里塞进反常识设定，爽点来自「普通生活 × 离谱机制」的反差。允许系统/重生/身份错位开局，章末可炸场。',
+    stance: '放开',
+    core: '日常场景里塞进反常识设定，爽点来自「普通生活 × 离谱机制」的反差。',
     openings: [
       '陈默把离职申请打了一半，公司群先替他发了。',
       'HR 宣布他因个人原因离职时，他还在想今天要不要提。',
@@ -50,6 +84,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '混合',
   },
   都市异能: {
+    stance: '放开',
     core: '主角拥有非常规异能，爽点来自用异能解决日常难题或碾压信息差。异能规则须自洽，前 1000 字内亮明机制。',
     openings: [
       '他摸到门把手的瞬间，听见了整层楼每个人的心跳。',
@@ -63,6 +98,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '混合',
   },
   职场商战: {
+    stance: '放开',
     core: '职场/商业场景下的逆袭与清算，爽点来自智力碾压与资源博弈。可含「被裁/被剽窃后反杀」，但不得描写正面主角非法入侵、植入后门或破坏系统。',
     openings: [
       '陈默的代码被人抄去卖了八千万，抄他的，是刚分手的女朋友。',
@@ -76,6 +112,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   技术流: {
+    stance: '放开',
     core: '以硬核技术/知识为金手指，爽点来自「降维打击式专业碾压」。技术逻辑须成立，可用夸张但不可伪科学胡编。',
     openings: [
       '他写的脚本跑完，对面公司的数据库自己把账本吐了出来。',
@@ -89,6 +126,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   历史架空: {
+    stance: '放开',
     core: '穿越/架空背景下的权谋、种田或争霸，爽点来自降维认知或布局反杀。开局须在具体事件中露谋略差，不先写世界背景。',
     openings: [
       '穿越第三天，他发现自己是全家唯一知道黄河要决堤的人。',
@@ -102,6 +140,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   争霸种田: {
+    stance: '放开',
     core: '从零建设或势力经营，爽点来自「积累—扩张—碾压」的确定性成长。时间累积类金手指优先。',
     openings: [
       '系统说每天种一亩地就多一千兵，他看向荒地，笑了。',
@@ -115,6 +154,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '混合',
   },
   东方玄幻: {
+    stance: '放开',
     core: '修炼/力量体系下的成长与争霸，爽点来自境界突破与越级碾压。须有清晰力量阶梯，突破须有代价或铺垫。',
     openings: [
       '宗门大比，所有人都笑他杂灵根，直到他剑指苍穹时天黑了半边。',
@@ -128,6 +168,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '混合',
   },
   高武世界: {
+    stance: '放开',
     core: '武道/高武背景，爽点来自肉身成圣与极致战力。动作描写优先，战斗须有战术而非纯数值。',
     openings: [
       '体检报告写着「骨密度超常三千倍」，医生让他别随便打喷嚏。',
@@ -141,6 +182,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '混合',
   },
   修仙: {
+    stance: '放开',
     core: '传统修仙或凡人流，爽点来自长生路上的机缘与布局。节奏可稍慢，但前 3 章须有金手指征兆或危机钩子。',
     openings: [
       '他发现自己能看见别人丹田里的裂纹，包括宗主的。',
@@ -154,6 +196,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   科幻: {
+    stance: '放开',
     core: '硬科幻或近未来设定，爽点来自科学脑洞与认知颠覆。设定须自洽，可用夸张但逻辑闭环。',
     openings: [
       '他证明光速可变的那篇论文，被导师批了「胡闹」后撤稿。',
@@ -167,6 +210,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   末世求生: {
+    stance: '放开',
     core: '末世/灾变下的生存与逆袭，爽点来自资源掌控与绝境反杀。开局直接扔进具体要命的局。',
     openings: [
       '末日第七天，他发现自己是唯一还能闻到食物的人。',
@@ -180,6 +224,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '混合',
   },
   赛博朋克: {
+    stance: '放开',
     core: '高科技低生活的反乌托邦，爽点来自黑客/义体/信息战降维。可含赛博带货式反差。',
     openings: [
       '他黑进公司内网，发现自己的记忆被标价出售。',
@@ -193,6 +238,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   无限流: {
+    stance: '放开',
     core: '副本/轮回下的智力与战力成长，爽点来自规则破解与凡人碾压。单元剧结构，每个副本独立小爽点。',
     openings: [
       '进入副本第一秒，系统说这关死亡率 99%，他看了眼规则，笑了。',
@@ -206,6 +252,7 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '混合',
   },
   探险: {
+    stance: '放开',
     core: '秘境/遗迹/未知领域的探索与夺宝，爽点来自信息差与绝境破局。',
     openings: [
       '古墓地图最后一行写着：别信带路的人。带路的正是他表哥。',
@@ -220,7 +267,8 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
   },
   // ===== 男频 · 写实向（收敛档，保留红线） =====
   都市日常: {
-    core: '贴近现实的日常生活流，情绪来自共鸣与微小反转。收敛档：避免开局无敌、龙傲天、标题党。',
+    stance: '收敛',
+    core: '贴近现实的日常生活流，情绪来自共鸣与微小反转。',
     openings: [
       '合租室友又把他冰箱里的饭吃了，这次留了张便利贴。',
       '加班到三点，房东说再不交租东西扔出去。',
@@ -233,7 +281,8 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   现实题材: {
-    core: '现实议题向，情绪来自真实困境与破局。收敛档：现实逻辑须成立，不得美化违法。',
+    stance: '收敛',
+    core: '现实议题向，情绪来自真实困境与破局。现实逻辑须成立，不得美化违法。',
     openings: [
       '医院账单下来的那刻，他算了算自己的存款位数。',
       '母亲又要给弟弟买房，他第一次说「不」。',
@@ -246,7 +295,8 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
     styleAxis: '严肃',
   },
   乡村生活: {
-    core: '乡村/田园题材，情绪来自烟火气与慢生活反转。收敛档：避免悬浮致富。',
+    stance: '收敛',
+    core: '乡村/田园题材，情绪来自烟火气与慢生活反转。不写悬浮致富，收入变化须有可验证的来源。',
     openings: [
       '回村第一天，他发现自己种的菜被邻居偷了一半，还剩一半更水灵。',
       '村口大爷说他这地种不出东西，他挖出了一口老井。',
@@ -263,6 +313,25 @@ export const GENRE_TACTICS: Record<string, GenreTactic> = {
 /** 取题材策略，未命中返回 null（由调用方决定是否回退到 TRACK_RULES） */
 export function genreTactic(genre: string): GenreTactic | null {
   return GENRE_TACTICS[genre] ?? null;
+}
+
+/**
+ * 解析题材档位：优先取 {@link GENRE_TACTICS} 的声明，未命中回退到分轨默认档位。
+ * 保证任何题材（含用户自定义题材）都能拿到一条明确、且**唯一**的档位指令。
+ */
+export function genreStance(track: GenreTrack, genre: string): GenreStance {
+  return genreTactic(genre)?.stance ?? TRACK_DEFAULT_STANCE[track];
+}
+
+/**
+ * 已知题材场景下的统一注入块：赛道通用约束 + 该题材档位指令。
+ *
+ * 只有「题材已定」的 prompt 才该用它（buildContext / writingPrompt / planningPrompt /
+ * outlinePrompt / optionsPrompt）；brainstormPrompt 与 subtypePrompt 的任务恰恰是
+ * **决定题材**，此时没有可解析的档位，仍只注入 {@link TRACK_RULES}。
+ */
+export function trackRule(track: GenreTrack, genre: string): string {
+  return `${TRACK_RULES[track]}\n${STANCE_RULES[genreStance(track, genre)]}`;
 }
 
 /**
@@ -285,13 +354,36 @@ export function styleText(project: ProjectData): string {
 ${style.referenceSamples.join('\n---\n') || '未提供参考片段'}${tactic ? `\n【题材策略】${tactic.core}` : ''}`;
 }
 
+/** 伏笔一行摘要：正文 + 回收排期，让模型同时看到「写什么」和「什么时候要还」。 */
+function clueLine(item: Foreshadowing): string {
+  const planted = item.plantedChapter ? `计划第${item.plantedChapter}章铺设` : '铺设章未排期';
+  const payoff = item.plannedPayoffChapter ? `计划第${item.plannedPayoffChapter}章回收` : '回收章未排期';
+  return `${item.content}（${planted}；${payoff}）`;
+}
+
 export function buildContext(project: ProjectData, chapter: Chapter, instruction: string): string {
   const previous = project.chapters.filter(item => item.order < chapter.order).sort((a, b) => b.order - a.order).slice(0, 3);
   const characters = project.characters.filter(item => !chapter.characterIds.length || chapter.characterIds.includes(item.id));
-  const clues = project.foreshadowing.filter(item => item.status !== 'paid' && (!item.plannedPayoffChapter || item.plannedPayoffChapter <= chapter.order + 2));
+  const pending = project.foreshadowing.filter(item => item.status !== 'paid');
+  /*
+   * 伏笔提示拆两段，避免「只提醒回收、不提醒铺设」导致伏笔链静默断裂。
+   *
+   * Foreshadowing 没有独立的「计划铺设章」字段，可用字段只有
+   * plantedChapter / plannedPayoffChapter / status（见 types.ts）。判断依据：
+   * - status === 'planned' 表示「已登记但尚未铺设」，此时 plantedChapter 即计划铺设章；
+   *   为空表示未排期 —— 未排期的待铺设伏笔每章都提醒，宁可啰嗦也不能漏；
+   *   plantedChapter <= 本章 表示本章或更早就该铺，逾期同样要提醒。
+   * - status === 'planted' 表示「已铺未收」，才谈得上「临近回收」，沿用原 order+2 窗口，
+   *   回收章未排期的也一并列出（与改造前对 !plannedPayoffChapter 的处理保持一致）。
+   * 两段按 status 天然互斥，同一条伏笔不会重复出现。
+   */
+  const toPlant = pending.filter(item => item.status === 'planned'
+    && (item.plantedChapter === null || item.plantedChapter <= chapter.order));
+  const nearPayoff = pending.filter(item => item.status === 'planted'
+    && (!item.plannedPayoffChapter || item.plannedPayoffChapter <= chapter.order + 2));
   const tactic = genreTactic(project.planning.genre);
   return `【项目】${project.name} / ${project.planning.genre}
-【题材规则】${TRACK_RULES[project.planning.genreTrack]}
+【题材规则】${trackRule(project.planning.genreTrack, project.planning.genre)}
 【题材策略】${tactic ? tactic.core : '未指定细分题材，按分轨通用规则'}
 【核心卖点】${project.planning.sellingPoint}
 【故事梗概】${project.planning.synopsis}
@@ -302,7 +394,8 @@ export function buildContext(project: ProjectData, chapter: Chapter, instruction
 【最近章节】${previous.map(item => `第${item.order}章：${item.summary || item.content.slice(0, 500)}`).join('\n') || '这是第一章'}
 【相关人物】${characters.map(item => `${item.name}：${item.identity}；欲望=${item.desire}；缺陷=${item.flaw}；能力边界=${item.boundaries}；说话=${item.voice}；阶段变化=${item.arc}`).join('\n') || '未指定'}
 【世界规则】${project.world.map(item => `${item.name}：${item.content}`).join('\n') || '无'}
-【待处理伏笔】${clues.map(item => item.content).join('\n') || '无'}
+【本章应铺设伏笔】${toPlant.map(clueLine).join('\n') || '无'}
+【临近回收伏笔】${nearPayoff.map(clueLine).join('\n') || '无'}
 【用户补充】${instruction || '无'}
 ${styleText(project)}`;
 }
@@ -313,9 +406,9 @@ export function writingPrompt(project: ProjectData): string {
 要求：用具体动作、对话和感官细节呈现；控制解释性文字；避免机械排比、总结句和空洞形容；
 章节内部必须有状态变化；结尾钩子应来自剧情因果，允许炸场式断章（仍须有因果）；不得解释创作过程。
 本章正文控制在1200至1500个汉字，不得用梗概或创作说明代替正文。
-${TRACK_RULES[project.planning.genreTrack]}
+${trackRule(project.planning.genreTrack, project.planning.genre)}
 ${tactic ? `【本题材写法】${tactic.core}` : ''}
-【去 AI 味硬约束（与放开脑洞并列，必须同时满足）】
+【去 AI 味硬约束（与上面的档位要求并列，必须同时满足）】
 1. 不写设定说明书：金手指/系统用事件抖出，不靠浮字平铺成 PRD。
 2. 反转有起伏：允许「闷一下再炸」，禁止每 80 字一个反转的均匀打卡。
 3. 真人错位细节：加入真人才有的不合理但真实反应（如退半份外卖、把手机扣桌上）。
@@ -399,18 +492,52 @@ ${tactics}
 }`;
 }
 
+/** planningPrompt 会要求模型回填的字段 → 中文标签，用于生成「已填/待补」清单。 */
+const PLANNING_FIELD_LABELS: Array<[keyof ProjectData['planning'], string]> = [
+  ['genre', '细分题材'],
+  ['targetReader', '目标读者'],
+  ['tags', '内容标签'],
+  ['sellingPoint', '一句话卖点'],
+  ['synopsis', '故事梗概'],
+  ['coreConflict', '核心冲突'],
+  ['emotionalGoal', '情绪目标'],
+  ['emotionalBeats', '情绪节拍'],
+  ['titleCandidates', '书名候选'],
+];
+
+/** 判空口径与 UI 一致：空串、纯空白、空数组都算「未填写」。 */
+function planningFieldFilled(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  return typeof value === 'string' ? value.trim().length > 0 : value != null;
+}
+
 export function planningPrompt(project: ProjectData): string {
-  const tactic = genreTactic(project.planning.genre);
+  const planning = project.planning;
+  const tactic = genreTactic(planning.genre);
+  // 用「JSON key（中文名）」列举，避免模型把中文标签映射错字段。
+  const describe = (kind: 'filled' | 'empty'): string => PLANNING_FIELD_LABELS
+    .filter(([key]) => planningFieldFilled(planning[key]) === (kind === 'filled'))
+    .map(([key, label]) => `${key}（${label}）`)
+    .join('、') || '无';
   return `你是番茄短篇策划编辑。基于用户已有信息做克制的结构化补强，不把平台经验说成算法事实。
-${TRACK_RULES[project.planning.genreTrack]}
+${trackRule(planning.genreTrack, planning.genre)}
 ${tactic ? `【本题材写法】${tactic.core}` : ''}
+【第 0 条·最高优先级：沿用用户已填内容】
+凡下列「已填字段」，必须**原样照抄回来**：一个字都不许改写、精简、替换同义词、增删条目或调整顺序。
+你的职责是补全「待补字段」，以及在**完全不改动既有内容**的前提下做增量补充（例如标签只能追加、不得替换已有标签）。
+若你认为某个已填字段不妥，也只能沿用，不得擅自修改——本条优先级高于下面所有规则。
+- 已填字段（必须原样沿用）：${describe('filled')}
+- 待补字段（需要你补全）：${describe('empty')}
+【只读约束·核心冲突类型】本书冲突类型已由用户点选为「${planning.coreConflictType || '未指定'}」。\
+coreConflict 的任何补充都不得偏离该类型；该字段本身不在输出 JSON 中，禁止返回或改写它。
 硬性规则：
 1. 一句话卖点必须为25至40个汉字，只保留人物处境、核心事件和反差；不得剧透反派身份、反击手段或结局。
-2. 给出5个书名候选，每个必须与题材、卖点和开篇一致。
+2. 给出5个书名候选，每个必须与题材、卖点和开篇一致；若用户已有书名候选，必须全部保留并在其后追加至5个。
 3. 情绪目标必须写成可执行事件节拍，不得写“让读者爽”“写给某类人的情书”等创作说明。
 4. 现实职业、法律和技术逻辑必须成立；不得让正面主角非法入侵、植入后门或破坏系统。
 5. 禁止评价词堆砌、机械排比、总结金句和自我表扬。
-输出严格 JSON：
+6. 每个字段都必须出现在输出 JSON 中；已填字段照抄，缺字段视为无效输出。
+输出严格 JSON（不含 coreConflictType，用户消息里的策划 JSON 即为当前已填内容）：
 {"genre":"","targetReader":"","tags":["","",""],"sellingPoint":"","synopsis":"","coreConflict":"","emotionalGoal":"","emotionalBeats":[{"chapters":"1-2","emotion":"","triggerEvent":""}],"titleCandidates":["","","","",""]}。`;
 }
 
@@ -444,7 +571,7 @@ export function outlinePrompt(project: ProjectData): string {
 - continuity：承接上一章的状态，以及本章结束后留给下一章的状态。
 - hook：迫使读者继续阅读的具体未决问题。
 
-${TRACK_RULES[project.planning.genreTrack]}
+${trackRule(project.planning.genreTrack, project.planning.genre)}
 ${tactic ? `【本题材写法】${tactic.core} 黄金三章须体现该题材爽点节奏。` : ''}`;
 }
 
@@ -568,7 +695,7 @@ ${tactic ? `5. 书名公式参考：${tactic.title}` : ''}`,
     : '{"options":[{"label":"候选内容","note":"一句说明"}]}';
 
   return `你是番茄短篇策划编辑，正在给作者提供可直接点选的候选项，不写正文、不写大纲。
-${TRACK_RULES[planning.genreTrack]}
+${trackRule(planning.genreTrack, planning.genre)}
 ${tactic ? `【本题材写法】${tactic.core}` : ''}
 【核心冲突类型可选枚举】${CONFLICT_TYPES.map(item => item.value).join('｜')}
 
@@ -590,9 +717,18 @@ ${optionsContext(project)}`;
 
 export function stylePrompt(genre: string, project: ProjectData): string {
   const tactic = genreTactic(genre);
+  const track = project.planning.genreTrack;
   return `你是中文类型小说文风编辑。请基于题材“${genre}”以及下面的策划和已有资产，推导一份可直接执行的文风档案。
 ${tactic ? `本题材写法：${tactic.core}` : ''}
+${trackRule(track, genre)}
 不得改变故事设定，不得模仿或声称模仿具体在世作者。内容不得涉及未成年人色情、性剥削或其他违法违规题材。
+【枚举白名单（必须优先命中，原样返回，不得改写措辞或自行扩写）】
+- perspective 只能取：${STYLE_ENUMS.perspective.join('｜')}
+- pace 只能取：${STYLE_ENUMS.pace.join('｜')}
+- sentenceLength 只能取：${STYLE_ENUMS.sentenceLength.join('｜')}
+- emotion 从该轨情绪原型中取 1—2 个：${poolOf(STYLE_ENUMS.emotion, track).join('｜')}（多个用「、」连接）
+上述值会被 UI 直接当枚举项匹配，写成「第三人称限知」「短句为主，长短交错」这类近义表述会掉进「自定义」分支。
+仅当以上枚举确实都不适用时才允许自定义，且必须保持同等颗粒度（4—8 字的短词，不写整句）。
 dialogueRatio 必须是 10 至 80 的数字；数组字段必须返回数组；negativeSamples 每项必须同时包含 text 和 reason。
 只返回一个 JSON 对象，不要解释、Markdown 或代码块。不要输出 schemaVersion，应用会保留本地版本。
 字段必须完整且严格使用以下结构：
