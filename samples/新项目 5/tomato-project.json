@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "project-ms13nynl-1jm79",
+  "rootPath": "/Users/swartea/Documents/tomato-writer/samples/新项目 5",
+  "name": "新项目 5",
+  "status": "planning",
+  "createdAt": "2026-07-26T01:08:58.544Z",
+  "updatedAt": "2026-07-26T01:08:58.549Z",
+  "chapters": [
+    {
+      "id": "mr0u7djb6k3p",
+      "order": 1,
+      "title": "第1章",
+      "outline": "",
+      "content": "",
+      "summary": "",
+      "status": "planned",
+      "characterIds": [],
+      "foreshadowingIds": [],
+      "updatedAt": "2026-07-26T01:08:58.549Z"
+    }
+  ]
+}

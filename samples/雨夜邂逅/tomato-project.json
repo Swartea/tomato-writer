@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "id": "project-ms13nylz-htsk9",
+  "rootPath": "/Users/swartea/Documents/tomato-writer/samples/雨夜邂逅",
+  "name": "雨夜邂逅",
+  "status": "writing",
+  "createdAt": "2026-07-26T01:08:58.485Z",
+  "updatedAt": "2026-07-26T01:08:58.503Z",
+  "chapters": [
+    {
+      "id": "c1",
+      "order": 1,
+      "title": "第一章 · 雨夜撞人",
+      "outline": "",
+      "content": "",
+      "summary": "",
+      "status": "approved",
+      "characterIds": [],
+      "foreshadowingIds": [],
+      "updatedAt": "2026-07-26T01:08:58.503Z"
+    },
+    {
+      "id": "c2",
+      "order": 2,
+      "title": "第二章 · 面试官席位",
+      "outline": "",
+      "content": "",
+      "summary": "",
+      "status": "approved",
+      "characterIds": [],
+      "foreshadowingIds": [],
+      "updatedAt": "2026-07-26T01:08:58.503Z"
+    },
+    {
+      "id": "c3",
+      "order": 3,
+      "title": "第3章",
+      "outline": "",
+      "content": "",
+      "summary": "",
+      "status": "planned",
+      "characterIds": [],
+      "foreshadowingIds": [],
+      "updatedAt": "2026-07-26T01:08:58.503Z"
+    }
+  ]
+}

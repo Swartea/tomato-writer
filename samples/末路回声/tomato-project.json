@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "project-ms13nymn-aiqt3",
+  "rootPath": "/Users/swartea/Documents/tomato-writer/samples/末路回声",
+  "name": "末路回声",
+  "status": "planning",
+  "createdAt": "2026-07-26T01:08:58.511Z",
+  "updatedAt": "2026-07-26T01:08:58.518Z",
+  "chapters": [
+    {
+      "id": "c1",
+      "order": 1,
+      "title": "第1章",
+      "outline": "",
+      "content": "",
+      "summary": "",
+      "status": "planned",
+      "characterIds": [],
+      "foreshadowingIds": [],
+      "updatedAt": "2026-07-26T01:08:58.518Z"
+    }
+  ]
+}

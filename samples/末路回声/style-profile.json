@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "perspective": "限制性第三人称",
+  "pace": "快节奏",
+  "emotion": "",
+  "dialogueRatio": 40,
+  "sentenceLength": "短句优先",
+  "protagonistVoice": "",
+  "bannedWords": [],
+  "bannedPatterns": [],
+  "referenceSamples": [],
+  "negativeSamples": []
+}
